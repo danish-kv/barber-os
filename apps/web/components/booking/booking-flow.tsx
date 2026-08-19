@@ -12,6 +12,7 @@ import {
   CalendarPlus,
   Check,
   ChevronRight,
+  Hourglass,
   Loader2,
   MapPin,
   Share2,
@@ -22,11 +23,12 @@ import { Progress } from "@/components/ui/progress";
 import { BottomSheet } from "@/components/shared/bottom-sheet";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { useDemoStore, priceForSelection, durationForSelection } from "@/lib/store";
-import { SERVICES, ADDONS, STAFF, BRANCHES } from "@/lib/data/seed-static";
+import { ALL_BRANCHES, ALL_BUSINESSES, ALL_SERVICES, ADDONS } from "@/lib/data/seed-static";
+import { staffById } from "@/lib/selectors";
 import type { Slot } from "@/lib/availability";
 import { inr, durationLabel } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import type { Appointment, Language } from "@/lib/types";
+import type { Appointment, BookingRequest, Language } from "@/lib/types";
 import {
   AddonStep,
   BarberStep,
@@ -36,7 +38,6 @@ import {
 } from "./steps";
 
 type Step = "services" | "barber" | "time" | "payment";
-const STEP_ORDER: Step[] = ["services", "barber", "time", "payment"];
 
 export function BookingFlow({
   branchId = "br_kakkanad",
@@ -53,40 +54,62 @@ export function BookingFlow({
 }) {
   const session = useDemoStore((s) => s.session);
   const createBooking = useDemoStore((s) => s.createBooking);
+  const requestBooking = useDemoStore((s) => s.requestBooking);
   const joinWaitlist = useDemoStore((s) => s.joinWaitlist);
   const upsertCustomer = useDemoStore((s) => s.upsertCustomer);
-  const customers = useDemoStore((s) => s.data.customers);
+  const data = useDemoStore((s) => s.data);
+  const customers = data.customers;
   const lang: Language = session.language;
 
+  // Operating mode drives the flow: request shops send a request instead of
+  // confirming; "any"/"shop" staff policies skip the barber step entirely.
+  const config = data.config;
+  const requestMode = config.bookingMode === "online_request";
+  const skipBarber = config.staffSelection !== "customer";
+  const hideStaffIdentity = config.staffSelection === "shop";
+  const stepOrder: Step[] = skipBarber
+    ? ["services", "time", "payment"]
+    : ["services", "barber", "time", "payment"];
+
   const [step, setStep] = useState<Step>(
-    preselectServiceIds.length > 0 ? "barber" : "services"
+    preselectServiceIds.length > 0 ? stepOrder[1] : "services"
   );
   const [serviceIds, setServiceIds] = useState<string[]>(preselectServiceIds);
   const [addonIds, setAddonIds] = useState<string[]>([]);
-  const [staffId, setStaffId] = useState<string | null>(preselectStaffId ?? null);
-  const [anyStaff, setAnyStaff] = useState(preselectStaffId === null);
-  const [barberChosen, setBarberChosen] = useState(preselectStaffId !== undefined);
+  const [staffId, setStaffId] = useState<string | null>(
+    skipBarber ? null : preselectStaffId ?? null
+  );
+  const [anyStaff, setAnyStaff] = useState(
+    skipBarber ? true : preselectStaffId === null
+  );
+  const [barberChosen, setBarberChosen] = useState(
+    skipBarber ? true : preselectStaffId !== undefined
+  );
   const [slot, setSlot] = useState<Slot | null>(null);
-  const [preference, setPreference] = useState<"advance" | "full" | "pay-at-shop">("advance");
+  const [preference, setPreference] = useState<"advance" | "full" | "pay-at-shop">(
+    config.advance === "none" || requestMode ? "pay-at-shop" : "advance"
+  );
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [paying, setPaying] = useState(false);
   const [payPhase, setPayPhase] = useState<"idle" | "processing" | "success">("idle");
   const [confirmed, setConfirmed] = useState<Appointment | null>(null);
+  const [requested, setRequested] = useState<BookingRequest | null>(null);
 
-  const branch = BRANCHES.find((b) => b.id === branchId)!;
+  const branch = ALL_BRANCHES.find((b) => b.id === branchId)!;
+  const business = ALL_BUSINESSES.find((b) => b.id === branch.businessId)!;
   const isCustomerSession = session.role === "customer";
   const totalPrice = priceForSelection(serviceIds, addonIds);
   const totalDuration = durationForSelection(serviceIds, addonIds);
 
-  const stepIndex = STEP_ORDER.indexOf(step);
-  const progress = ((stepIndex + 1) / STEP_ORDER.length) * 100;
+  const stepIndex = stepOrder.indexOf(step);
+  const progress = ((stepIndex + 1) / stepOrder.length) * 100;
 
   const serviceNames = useMemo(
     () =>
       serviceIds
         .map((id) => {
-          const s = SERVICES.find((sv) => sv.id === id);
+          const s = ALL_SERVICES.find((sv) => sv.id === id);
           return lang === "ml" && s?.nameMl ? s.nameMl : s?.name;
         })
         .filter(Boolean)
@@ -125,13 +148,17 @@ export function BookingFlow({
 
   const goNext = () => {
     if (step === "payment") {
-      startPayment();
+      if (requestMode) {
+        sendRequest();
+      } else {
+        startPayment();
+      }
       return;
     }
-    setStep(STEP_ORDER[stepIndex + 1]);
+    setStep(stepOrder[stepIndex + 1]);
   };
   const goBack = () => {
-    if (stepIndex > 0) setStep(STEP_ORDER[stepIndex - 1]);
+    if (stepIndex > 0) setStep(stepOrder[stepIndex - 1]);
   };
 
   const resolveCustomerId = (): string => {
@@ -178,6 +205,22 @@ export function BookingFlow({
     onDone?.(appt.id);
   };
 
+  // Request mode: nothing is confirmed and no capacity is consumed until the
+  // shop accepts (Demo V1.1 §17/§50).
+  const sendRequest = () => {
+    if (!slot) return;
+    const req = requestBooking({
+      branchId,
+      customerId: isCustomerSession ? "cu_danish" : undefined,
+      customerName: isCustomerSession ? "Danish" : guestName.trim(),
+      customerPhone: guestPhone.trim() || undefined,
+      serviceIds,
+      preferredStart: slot.start.toISOString(),
+    });
+    setRequested(req);
+    toast.success("Booking request sent");
+  };
+
   const startPayment = () => {
     if (preference === "pay-at-shop") {
       finalizeBooking();
@@ -209,14 +252,30 @@ export function BookingFlow({
     });
   };
 
+  // --------------------------- REQUEST SENT ------------------------------
+  if (requested) {
+    return (
+      <RequestSentScreen
+        request={requested}
+        businessName={business.name}
+        businessSlug={business.slug}
+        serviceNames={serviceNames}
+        backHref={backHref}
+      />
+    );
+  }
+
   // ------------------------------ CONFIRMED ------------------------------
   if (confirmed) {
     return (
       <ConfirmationScreen
         appointment={confirmed}
+        businessName={business.name}
         branchName={branch.name}
+        branchLocality={branch.address.locality}
         serviceNames={serviceNames}
         totalPrice={totalPrice}
+        hideStaffIdentity={hideStaffIdentity}
         lang={lang}
       />
     );
@@ -225,8 +284,8 @@ export function BookingFlow({
   const STEP_TITLE: Record<Step, string> = {
     services: t("book.chooseServices", lang),
     barber: t("book.chooseBarber", lang),
-    time: t("book.chooseTime", lang),
-    payment: t("book.payment", lang),
+    time: requestMode ? "Preferred time" : t("book.chooseTime", lang),
+    payment: requestMode ? "Your details" : t("book.payment", lang),
   };
 
   return (
@@ -253,12 +312,12 @@ export function BookingFlow({
           ) : null}
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted-foreground">
-              Royal Cuts · {branch.name}
+              {business.name}{branch.name !== business.name ? ` · ${branch.name}` : ""}
             </p>
             <h2 className="font-heading text-lg font-semibold">{STEP_TITLE[step]}</h2>
           </div>
           <span className="text-xs font-medium text-muted-foreground tabular-nums">
-            {stepIndex + 1}/{STEP_ORDER.length}
+            {stepIndex + 1}/{stepOrder.length}
           </span>
         </div>
         <Progress value={progress} className="mt-3 h-1" />
@@ -308,14 +367,17 @@ export function BookingFlow({
           <ReviewCard
             serviceNames={serviceNames}
             staffName={
-              anyStaff
-                ? t("book.anyBarber", lang)
-                : STAFF.find((s) => s.id === staffId)?.name ?? ""
+              hideStaffIdentity
+                ? "Assigned by the shop"
+                : anyStaff
+                  ? t("book.anyBarber", lang)
+                  : staffById(staffId, data)?.name ?? ""
             }
             slot={slot}
             totalPrice={totalPrice}
             totalDuration={totalDuration}
             addonIds={addonIds}
+            timeLabel={requestMode ? "Preferred time" : "Time"}
           />
           <div className="mt-5">
             <PaymentStep
@@ -327,6 +389,7 @@ export function BookingFlow({
               onGuestName={setGuestName}
               onGuestPhone={setGuestPhone}
               needGuestDetails={!isCustomerSession}
+              hidePaymentOptions={requestMode}
               lang={lang}
             />
           </div>
@@ -356,11 +419,13 @@ export function BookingFlow({
             onClick={goNext}
           >
             {step === "payment"
-              ? preference === "advance"
-                ? t("book.payAdvance", lang)
-                : preference === "full"
-                  ? `Pay ${inr(totalPrice)} · UPI`
-                  : t("book.confirm", lang)
+              ? requestMode
+                ? "Send Request"
+                : preference === "advance"
+                  ? t("book.payAdvance", lang)
+                  : preference === "full"
+                    ? `Pay ${inr(totalPrice)} · UPI`
+                    : t("book.confirm", lang)
               : t("book.continue", lang)}
             <ChevronRight className="size-4" aria-hidden />
           </Button>
@@ -385,7 +450,7 @@ export function BookingFlow({
               </span>
               <p className="mt-4 text-sm font-medium">Waiting for UPI approval…</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                royal.cuts@ybl · {inr(preference === "advance" ? 100 : totalPrice)}
+                {business.slug.replace(/-/g, ".")}@ybl · {inr(preference === "advance" ? 100 : totalPrice)}
               </p>
               <Loader2 className="mt-4 size-5 animate-spin text-muted-foreground" aria-hidden />
             </>
@@ -415,6 +480,7 @@ function ReviewCard({
   totalPrice,
   totalDuration,
   addonIds,
+  timeLabel = "Time",
 }: {
   serviceNames: string;
   staffName: string;
@@ -422,6 +488,7 @@ function ReviewCard({
   totalPrice: number;
   totalDuration: number;
   addonIds: string[];
+  timeLabel?: string;
 }) {
   return (
     <div className="rounded-2xl border bg-card p-4">
@@ -450,7 +517,7 @@ function ReviewCard({
         </div>
         {slot && (
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Time</dt>
+            <dt className="text-muted-foreground">{timeLabel}</dt>
             <dd className="font-medium">{format(slot.start, "EEE d MMM · h:mm a")}</dd>
           </div>
         )}
@@ -471,28 +538,35 @@ function ReviewCard({
 
 function ConfirmationScreen({
   appointment,
+  businessName,
   branchName,
+  branchLocality,
   serviceNames,
   totalPrice,
+  hideStaffIdentity = false,
   lang,
 }: {
   appointment: Appointment;
+  businessName: string;
   branchName: string;
+  branchLocality: string;
   serviceNames: string;
   totalPrice: number;
+  hideStaffIdentity?: boolean;
   lang: Language;
 }) {
-  const staff = STAFF.find((s) => s.id === appointment.staffId);
+  const rawStaff = staffById(appointment.staffId, useDemoStore.getState().data);
+  const staff = hideStaffIdentity ? undefined : rawStaff;
   const advance = appointment.advancePaid ? appointment.advanceAmount ?? 0 : 0;
   const fullPaid = appointment.paymentPreference === "full";
   const balance = fullPaid ? 0 : Math.max(0, totalPrice - advance);
   const start = new Date(appointment.start);
 
   const share = async () => {
-    const text = `Booked at Royal Cuts ${branchName}: ${serviceNames} with ${staff?.name ?? "any barber"} on ${format(start, "d MMM, h:mm a")}`;
+    const text = `Booked at ${businessName} ${branchName}: ${serviceNames}${staff ? ` with ${staff.name}` : ""} on ${format(start, "d MMM, h:mm a")}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Royal Cuts booking", text });
+        await navigator.share({ title: `${businessName} booking`, text });
       } catch {
         /* user cancelled */
       }
@@ -506,10 +580,10 @@ function ConfirmationScreen({
     const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
     const params = new URLSearchParams({
       action: "TEMPLATE",
-      text: `Royal Cuts — ${serviceNames}`,
+      text: `${businessName} — ${serviceNames}`,
       dates: `${fmt(start)}/${fmt(new Date(appointment.end))}`,
-      details: `With ${staff?.name ?? "any barber"} at Royal Cuts ${branchName}`,
-      location: `Royal Cuts, ${branchName}`,
+      details: `${staff ? `With ${staff.name} at ` : "At "}${businessName} ${branchName}`,
+      location: `${businessName}, ${branchName}`,
     });
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
   })();
@@ -522,7 +596,10 @@ function ConfirmationScreen({
       <h2 className="mt-5 font-heading text-2xl font-semibold">
         {t("book.confirmed", lang)}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">Royal Cuts · {branchName}</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {businessName}
+        {branchName !== businessName ? ` · ${branchName}` : ""}
+      </p>
 
       <div className="mt-6 w-full max-w-sm rounded-2xl border bg-card p-5 text-left shadow-xs">
         <div className="flex items-center gap-3">
@@ -530,7 +607,11 @@ function ConfirmationScreen({
           <div className="min-w-0">
             <p className="font-heading text-base font-semibold">{serviceNames}</p>
             <p className="text-sm text-muted-foreground">
-              {staff ? staff.name : t("book.anyBarber", lang)}
+              {staff
+                ? staff.name
+                : hideStaffIdentity
+                  ? "Barber assigned at the shop"
+                  : t("book.anyBarber", lang)}
             </p>
           </div>
         </div>
@@ -567,7 +648,7 @@ function ConfirmationScreen({
         </Button>
         <Button variant="outline" asChild>
           <a
-            href="https://maps.google.com/?q=Royal+Cuts+Kakkanad+Kochi"
+            href={`https://maps.google.com/?q=${encodeURIComponent(`${businessName} ${branchLocality}`)}`}
             target="_blank"
             rel="noreferrer"
           >
@@ -582,6 +663,59 @@ function ConfirmationScreen({
         <Button asChild>
           <Link href={`/customer/bookings/${appointment.id}` as "/"}>
             {t("book.viewBooking", lang)}
+          </Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function RequestSentScreen({
+  request,
+  businessName,
+  businessSlug,
+  serviceNames,
+  backHref,
+}: {
+  request: BookingRequest;
+  businessName: string;
+  businessSlug: string;
+  serviceNames: string;
+  backHref?: string;
+}) {
+  // Deliberately NOT the green confirmation — nothing is booked yet (§50).
+  return (
+    <div className="flex flex-col items-center pt-6 pb-10 text-center">
+      <span className="flex size-20 items-center justify-center rounded-full bg-warning/10 animate-in zoom-in-50 duration-300">
+        <Hourglass className="size-9 text-warning" aria-hidden />
+      </span>
+      <h2 className="mt-5 font-heading text-2xl font-semibold">
+        Booking request sent
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">{businessName}</p>
+
+      <div className="mt-6 w-full max-w-sm rounded-2xl border bg-card p-5 text-left shadow-xs">
+        <p className="font-heading text-base font-semibold">{serviceNames}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Preferred: {format(new Date(request.preferredStart), "EEE d MMM · h:mm a")}
+        </p>
+        <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning-foreground dark:text-warning">
+          The shop will confirm, suggest another time, or call you back — it is
+          not booked yet.
+        </p>
+      </div>
+
+      <div className="mt-6 grid w-full max-w-sm gap-2">
+        <Button asChild>
+          <Link href={`/shops/${businessSlug}/request/${request.id}` as "/"}>
+            Track this request
+          </Link>
+        </Button>
+        <Button variant="outline" asChild>
+          <Link href={(backHref ?? `/shops/${businessSlug}`) as "/"}>
+            Back to shop page
           </Link>
         </Button>
       </div>

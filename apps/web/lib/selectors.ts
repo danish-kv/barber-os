@@ -13,20 +13,68 @@ import type {
   Staff,
 } from "@/lib/types";
 import type { DemoData } from "@/lib/data/seed";
-import { BRANCHES, SERVICES, STAFF } from "@/lib/data/seed-static";
+import {
+  ALL_BRANCHES,
+  ALL_SERVICES,
+  SEED_STAFF,
+} from "@/lib/data/seed-static";
 import { estimateWaits, queueAnchor } from "@barbershop-os/domain";
 
-const serviceMap = new Map(SERVICES.map((s) => [s.id, s]));
-const staffMap = new Map(STAFF.map((s) => [s.id, s]));
+const serviceMap = new Map(ALL_SERVICES.map((s) => [s.id, s]));
+const staffMap = new Map(SEED_STAFF.map((s) => [s.id, s]));
+const branchBusiness = new Map(ALL_BRANCHES.map((b) => [b.id, b.businessId]));
 
 export function serviceById(id: string) {
   return serviceMap.get(id);
 }
-export function staffById(id: string | null | undefined) {
-  return id ? staffMap.get(id) : undefined;
+
+/** Resolves seed staff from any scenario; pass `data` to also resolve
+ * runtime-added staff (temporary hires live in data.extraStaff). */
+export function staffById(id: string | null | undefined, data?: DemoData) {
+  if (!id) return undefined;
+  const base = staffMap.get(id) ?? data?.extraStaff.find((s) => s.id === id);
+  if (!base) return undefined;
+  const override = data?.staffOverrides?.[id];
+  return override ? { ...base, ...override } : base;
 }
+
 export function branchById(id: string) {
-  return BRANCHES.find((b) => b.id === id);
+  return ALL_BRANCHES.find((b) => b.id === id);
+}
+
+/** Is this staff member under an active contract on the given date?
+ * Permanent staff are always active; temporary/contract staff only inside
+ * their activeFrom..activeUntil window. */
+export function isStaffActiveOn(staff: Staff, date: Date) {
+  if (!staff.activeFrom && !staff.activeUntil) return true;
+  const key = format(date, "yyyy-MM-dd");
+  if (staff.activeFrom && key < staff.activeFrom) return false;
+  if (staff.activeUntil && key > staff.activeUntil) return false;
+  return true;
+}
+
+/** All staff of the ACTIVE demo business (seed + runtime-added), optionally
+ * branch-scoped and filtered to those active on a date. Scoping by the
+ * data's businessId keeps scenarios isolated from each other. */
+export function staffForBranch(
+  data: DemoData,
+  branchFilter: string,
+  opts: { activeOn?: Date; includeInactive?: boolean } = {}
+): Staff[] {
+  const all = [
+    ...SEED_STAFF.filter(
+      (s) => branchBusiness.get(s.branchId) === data.businessId
+    ),
+    ...data.extraStaff,
+  ].map((s) => {
+    const override = data.staffOverrides?.[s.id];
+    return override ? { ...s, ...override } : s;
+  });
+  return all.filter((s) => {
+    if (branchFilter !== "all" && s.branchId !== branchFilter) return false;
+    if (opts.includeInactive) return true;
+    return isStaffActiveOn(s, opts.activeOn ?? new Date());
+  });
 }
 export function customerById(data: DemoData, id: string) {
   return data.customers.find((c) => c.id === id);
@@ -115,7 +163,7 @@ export function queueForBranch(data: DemoData, branchId: string, now = new Date(
     );
 
   const dateKey = format(now, "yyyy-MM-dd");
-  const staffState = STAFF.filter((s) => s.branchId === branchId).map((staff) => {
+  const staffState = staffForBranch(data, branchId, { activeOn: now }).map((staff) => {
     const shift = data.shifts.find(
       (sh) => sh.staffId === staff.id && sh.date === dateKey
     );
@@ -311,7 +359,9 @@ export function staffPerformance(
   from: Date,
   to: Date
 ): StaffPerformance[] {
-  const staffList = STAFF.filter((s) => inBranch(branchFilter, s.branchId));
+  const staffList = staffForBranch(data, branchFilter, {
+    includeInactive: true, // expired contracts keep their history rows
+  });
   const invoices = invoicesForRange(data, branchFilter, from, to);
   const rangeDays = Math.max(1, differenceInDays(to, from) + 1);
 

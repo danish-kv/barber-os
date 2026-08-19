@@ -13,8 +13,12 @@ import { BottomSheet } from "@/components/shared/bottom-sheet";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { useDemoStore } from "@/lib/store";
-import { customerById, serviceNames } from "@/lib/selectors";
-import { STAFF } from "@/lib/data/seed-static";
+import {
+  customerById,
+  serviceNames,
+  staffById,
+  staffForBranch,
+} from "@/lib/selectors";
 import { inr, timeLabel } from "@/lib/format";
 import { priceForSelection } from "@/lib/store";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
@@ -61,7 +65,7 @@ export function DayCalendar({
   const isToday = dayOffset === 0;
   const dateKey = format(day, "yyyy-MM-dd");
 
-  const branchStaff = STAFF.filter((s) => s.branchId === branchId);
+  const branchStaff = staffForBranch(data, branchId, { activeOn: day });
 
   const appts = useMemo(
     () =>
@@ -314,7 +318,7 @@ export function DayCalendar({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {selected.staffId
-                    ? STAFF.find((s) => s.id === selected.staffId)?.name
+                    ? staffById(selected.staffId, data)?.name
                     : "Any barber"}{" "}
                   · {selected.source} · {inr(priceForSelection(selected.serviceIds, selected.addonIds))}
                   {selected.advancePaid && ` · ₹${selected.advanceAmount} advance paid`}

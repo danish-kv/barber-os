@@ -6,6 +6,10 @@ import { addMinutes } from "date-fns";
 import type {
   AppNotification,
   Appointment,
+  BookingRequest,
+  ScenarioId,
+  ShopConfig,
+  Staff,
   Campaign,
   Customer,
   InvoiceLineItem,
@@ -19,14 +23,19 @@ import type {
   WaitlistEntry,
 } from "@/lib/types";
 import { buildSeed, type DemoData } from "@/lib/data/seed";
-import { SERVICES, ADDONS, STAFF, MEMBERSHIP_PLANS } from "@/lib/data/seed-static";
+import {
+  ALL_SERVICES,
+  ADDONS,
+  STAFF,
+  MEMBERSHIP_PLANS,
+} from "@/lib/data/seed-static";
 import {
   computeCheckoutTotals,
   totalDurationMin,
   totalPrice,
 } from "@barbershop-os/domain";
 
-const SEED_VERSION = 5;
+const SEED_VERSION = 7;
 const SEED_MAX_AGE_MS = 1000 * 60 * 60 * 18; // reseed after 18h so demo stays "today"
 
 export interface DemoSession {
@@ -34,6 +43,8 @@ export interface DemoSession {
   activeBranchId: string; // for staff-scoped roles; owner can use "all"
   ownerBranchFilter: string; // "all" or branchId
   language: Language;
+  /** Selected demo business archetype (Demo V1.1). */
+  scenario: ScenarioId;
 }
 
 export interface DemoState {
@@ -50,6 +61,25 @@ export interface DemoState {
   setLanguage: (lang: Language) => void;
   resetDemo: () => void;
   markHydrated: () => void;
+
+  // ---- Demo V1.1: scenarios, operating modes, flexible staff ----
+  setScenario: (scenario: ScenarioId) => void;
+  updateConfig: (patch: Partial<ShopConfig>) => void;
+  addStaff: (staff: Staff) => void;
+  reactivateStaff: (staffId: string, activeUntil: string) => void;
+  inviteStaffToApp: (staffId: string) => void;
+  requestBooking: (args: {
+    branchId: string;
+    customerId?: string;
+    customerName: string;
+    customerPhone?: string;
+    serviceIds: string[];
+    preferredStart: string;
+  }) => BookingRequest;
+  acceptBookingRequest: (requestId: string, start?: string) => void;
+  suggestBookingTime: (requestId: string, suggestedStart: string) => void;
+  declineBookingRequest: (requestId: string) => void;
+  acceptSuggestedTime: (requestId: string) => void;
 
   // ---- booking (Flow A) ----
   createBooking: (args: {
@@ -151,7 +181,7 @@ function uid(prefix: string) {
   return `${prefix}_live_${Date.now().toString(36)}_${idCounter}`;
 }
 
-const serviceMap = new Map(SERVICES.map((s) => [s.id, s]));
+const serviceMap = new Map(ALL_SERVICES.map((s) => [s.id, s]));
 const addonMap = new Map(ADDONS.map((a) => [a.id, a]));
 
 // Selection totals delegate to the shared domain package, bound to the demo
@@ -170,6 +200,7 @@ const initialSession: DemoSession = {
   activeBranchId: "br_kakkanad",
   ownerBranchFilter: "all",
   language: "en",
+  scenario: "premium",
 };
 
 export const useDemoStore = create<DemoState>()(
@@ -186,7 +217,11 @@ export const useDemoStore = create<DemoState>()(
           st.seedVersion !== SEED_VERSION ||
           Date.now() - new Date(st.data.seededAt).getTime() > SEED_MAX_AGE_MS;
         if (stale) {
-          set({ data: buildSeed(), seedVersion: SEED_VERSION, hydrated: true });
+          set({
+            data: buildSeed(new Date(), st.session.scenario),
+            seedVersion: SEED_VERSION,
+            hydrated: true,
+          });
         } else {
           set({ hydrated: true });
         }
@@ -202,11 +237,171 @@ export const useDemoStore = create<DemoState>()(
       setLanguage: (lang) =>
         set((st) => ({ session: { ...st.session, language: lang } })),
       resetDemo: () =>
-        set(() => ({
-          data: buildSeed(),
-          session: initialSession,
+        set((st) => ({
+          data: buildSeed(new Date(), st.session.scenario),
+          session: { ...initialSession, scenario: st.session.scenario },
           seedVersion: SEED_VERSION,
         })),
+
+      setScenario: (scenario) =>
+        set((st) => {
+          if (st.session.scenario === scenario && st.data.scenario === scenario) {
+            return st; // keep in-progress demo state when re-selecting
+          }
+          const data = buildSeed(new Date(), scenario);
+          return {
+            data,
+            session: {
+              ...initialSession,
+              scenario,
+              activeBranchId: data.branchId,
+            },
+          };
+        }),
+
+      updateConfig: (patch) =>
+        set((st) => ({
+          data: { ...st.data, config: { ...st.data.config, ...patch } },
+        })),
+
+      addStaff: (staff) =>
+        set((st) => ({
+          data: { ...st.data, extraStaff: [...st.data.extraStaff, staff] },
+        })),
+
+      reactivateStaff: (staffId, activeUntil) =>
+        set((st) => ({
+          data: {
+            ...st.data,
+            staffOverrides: {
+              ...st.data.staffOverrides,
+              [staffId]: {
+                ...st.data.staffOverrides[staffId],
+                activeFrom: new Date().toISOString().slice(0, 10),
+                activeUntil,
+              },
+            },
+          },
+        })),
+
+      inviteStaffToApp: (staffId) =>
+        set((st) => ({
+          data: {
+            ...st.data,
+            staffOverrides: {
+              ...st.data.staffOverrides,
+              [staffId]: {
+                ...st.data.staffOverrides[staffId],
+                inviteStatus: "pending" as const,
+              },
+            },
+          },
+        })),
+
+      requestBooking: (args) => {
+        const request: BookingRequest = {
+          id: uid("req"),
+          businessId: get().data.businessId,
+          branchId: args.branchId,
+          customerId: args.customerId,
+          customerName: args.customerName,
+          customerPhone: args.customerPhone,
+          serviceIds: args.serviceIds,
+          preferredStart: args.preferredStart,
+          status: "requested",
+          createdAt: new Date().toISOString(),
+        };
+        set((st) => ({
+          data: {
+            ...st.data,
+            bookingRequests: [request, ...st.data.bookingRequests],
+          },
+        }));
+        return request;
+      },
+
+      acceptBookingRequest: (requestId, start) => {
+        const st = get();
+        const req = st.data.bookingRequests.find((r) => r.id === requestId);
+        if (!req || req.status === "confirmed") return;
+        let customerId = req.customerId;
+        if (!customerId) {
+          const cust: Customer = {
+            id: uid("cu"),
+            userId: uid("user"),
+            name: req.customerName,
+            phone: req.customerPhone ?? "",
+            avatarTone: "slate",
+            homeBranchId: req.branchId,
+            preferences: [],
+            notes: "",
+            tags: ["new"],
+            joinedAt: new Date().toISOString(),
+            favoriteBranchIds: [req.branchId],
+            favoriteServiceIds: req.serviceIds.slice(0, 1),
+            language: "en",
+          };
+          set((s2) => ({
+            data: { ...s2.data, customers: [...s2.data.customers, cust] },
+          }));
+          customerId = cust.id;
+        }
+        const appt = get().createBooking({
+          branchId: req.branchId,
+          customerId,
+          staffId: null,
+          serviceIds: req.serviceIds,
+          addonIds: [],
+          start: start ?? req.suggestedStart ?? req.preferredStart,
+          paymentPreference: "pay-at-shop",
+          source: "phone",
+        });
+        set((s2) => ({
+          data: {
+            ...s2.data,
+            bookingRequests: s2.data.bookingRequests.map((r) =>
+              r.id === requestId
+                ? {
+                    ...r,
+                    status: "confirmed" as const,
+                    decidedAt: new Date().toISOString(),
+                    appointmentId: appt.id,
+                  }
+                : r
+            ),
+          },
+        }));
+      },
+
+      suggestBookingTime: (requestId, suggestedStart) =>
+        set((st) => ({
+          data: {
+            ...st.data,
+            bookingRequests: st.data.bookingRequests.map((r) =>
+              r.id === requestId
+                ? { ...r, status: "suggested" as const, suggestedStart }
+                : r
+            ),
+          },
+        })),
+
+      declineBookingRequest: (requestId) =>
+        set((st) => ({
+          data: {
+            ...st.data,
+            bookingRequests: st.data.bookingRequests.map((r) =>
+              r.id === requestId
+                ? { ...r, status: "declined" as const, decidedAt: new Date().toISOString() }
+                : r
+            ),
+          },
+        })),
+
+      acceptSuggestedTime: (requestId) => {
+        const req = get().data.bookingRequests.find((r) => r.id === requestId);
+        if (!req?.suggestedStart) return;
+        get().acceptBookingRequest(requestId, req.suggestedStart);
+      },
 
       createBooking: (args) => {
         const dur = durationForSelection(args.serviceIds, args.addonIds);

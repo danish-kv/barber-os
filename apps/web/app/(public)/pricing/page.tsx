@@ -14,23 +14,27 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Barbershop OS plans — Free, Pro ₹799, Business ₹1,499 and Multi-Branch ₹2,999+.",
+    "Barbershop OS plans — Free, Solo ₹399, Pro ₹799, Business ₹1,499 and Multi-Branch ₹2,999+.",
 };
 
-const COMPARE: Array<{ label: string; values: [boolean | string, boolean | string, boolean | string, boolean | string] }> = [
-  { label: "Online bookings", values: ["Basic", true, true, true] },
-  { label: "Staff members", values: ["1", "Unlimited", "Unlimited", "Unlimited"] },
-  { label: "Walk-in queue", values: [false, true, true, true] },
-  { label: "POS & UPI payments", values: [false, true, true, true] },
-  { label: "Customer database", values: [true, true, true, true] },
-  { label: "Analytics", values: [false, "Core", "Advanced", "Advanced"] },
-  { label: "Loyalty & memberships", values: [false, false, true, true] },
-  { label: "Inventory & purchase orders", values: [false, false, true, true] },
-  { label: "Staff commissions", values: [false, false, true, true] },
-  { label: "Marketing campaigns", values: [false, false, true, true] },
-  { label: "Multiple branches", values: [false, false, false, true] },
-  { label: "Centralized analytics", values: [false, false, false, true] },
-  { label: "Priority support", values: [false, false, false, true] },
+type CompareValue = boolean | string;
+const COMPARE: Array<{ label: string; values: [CompareValue, CompareValue, CompareValue, CompareValue, CompareValue] }> = [
+  // Columns follow SUBSCRIPTION_PLANS order: Free · Solo · Pro · Business · Multi-Branch
+  { label: "Online bookings", values: ["Basic", "All modes", true, true, true] },
+  { label: "Phone/WhatsApp booking mode", values: [false, true, true, true, true] },
+  { label: "Staff members", values: ["1", "1 + seasonal", "Unlimited", "Unlimited", "Unlimited"] },
+  { label: "Temporary staff windows", values: [false, true, true, true, true] },
+  { label: "Walk-in queue", values: [false, true, true, true, true] },
+  { label: "POS & UPI payments", values: [false, true, true, true, true] },
+  { label: "Customer database", values: [true, true, true, true, true] },
+  { label: "Analytics", values: [false, "Daily revenue", "Core", "Advanced", "Advanced"] },
+  { label: "Loyalty & memberships", values: [false, false, false, true, true] },
+  { label: "Inventory & purchase orders", values: [false, false, false, true, true] },
+  { label: "Staff commissions", values: [false, false, false, true, true] },
+  { label: "Marketing campaigns", values: [false, false, false, true, true] },
+  { label: "Multiple branches", values: [false, false, false, false, true] },
+  { label: "Centralized analytics", values: [false, false, false, false, true] },
+  { label: "Priority support", values: [false, false, false, false, true] },
 ];
 
 const FAQS = [
@@ -45,6 +49,10 @@ const FAQS = [
   {
     q: "How does the free plan work?",
     a: "Free forever for one barber with basic bookings and a customer database. Perfect for a single-chair shop testing the waters.",
+  },
+  {
+    q: "What's the difference between Free and Solo?",
+    a: "Solo adds the full one-person toolkit: phone/WhatsApp booking modes, the walk-in queue, UPI checkout, daily revenue and seasonal helper staff — still one chair, ₹399/month.",
   },
   {
     q: "Do you charge per booking?",
@@ -64,7 +72,7 @@ export default function PricingPage() {
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {SUBSCRIPTION_PLANS.map((plan) => (
           <div
             key={plan.id}
@@ -109,7 +117,7 @@ export default function PricingPage() {
           Compare plans
         </h2>
         <div className="mt-6 overflow-x-auto rounded-2xl border">
-          <table className="w-full min-w-[640px] border-collapse bg-card text-sm">
+          <table className="w-full min-w-[760px] border-collapse bg-card text-sm">
             <thead>
               <tr className="border-b bg-muted/40">
                 <th scope="col" className="p-3 text-left font-medium">Feature</th>

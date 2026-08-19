@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { BottomSheet } from "@/components/shared/bottom-sheet";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { useDemoStore, durationForSelection, priceForSelection } from "@/lib/store";
-import { SERVICES, STAFF } from "@/lib/data/seed-static";
+import { ALL_SERVICES } from "@/lib/data/seed-static";
+import { staffForBranch } from "@/lib/selectors";
 import { inr, durationLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,8 @@ export function WalkInSheet({
   onOpenChange: (o: boolean) => void;
   branchId: string;
 }) {
-  const customers = useDemoStore((s) => s.data.customers);
+  const data = useDemoStore((s) => s.data);
+  const customers = data.customers;
   const addWalkIn = useDemoStore((s) => s.addWalkIn);
 
   const [query, setQuery] = useState("");
@@ -45,8 +47,8 @@ export function WalkInSheet({
       .slice(0, 4);
   }, [customers, query]);
 
-  const branchStaff = STAFF.filter((s) => s.branchId === branchId);
-  const services = SERVICES.filter((s) => s.branchIds.includes(branchId));
+  const branchStaff = staffForBranch(data, branchId, { activeOn: new Date() });
+  const services = ALL_SERVICES.filter((s) => s.branchIds.includes(branchId));
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const total = priceForSelection(serviceIds, []);
   const duration = durationForSelection(serviceIds, []);

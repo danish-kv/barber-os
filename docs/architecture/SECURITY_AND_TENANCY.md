@@ -181,3 +181,18 @@ It must never hold a real session: the demo bundle ships without API
 credentials, and the API refuses demo-tenant writes from production web
 origin if a seeded demo tenant is later introduced (separate business flagged
 `is_demo`, excluded from billing/analytics/exports, nightly reset job).
+
+## Demo V1.1 amendment — managed staff without logins
+
+Staff with `access_type = 'managed_by_shop'` have **no USER row and no
+credentials**; they are pure tenant data operated by the owner's session.
+Consequences:
+
+- Nothing to phish, no OTP surface, no session lifecycle for them.
+- Authorization checks always run against the *acting* user (the owner or
+  manager), never the managed profile — audit logs record "owner X completed
+  appointment for staff Y".
+- The invite flow (`POST /v1/staff/:id/invite`) is the only path that creates
+  credentials for an existing profile, and it must re-verify ownership of the
+  phone number via OTP before linking a USER to the staff profile — otherwise
+  a hostile owner could bind someone else's login to their shop.

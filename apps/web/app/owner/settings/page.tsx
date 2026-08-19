@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { useDemoStore } from "@/lib/store";
 import { Building2, CalendarClock, Save, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,9 +31,14 @@ const PERMISSION_LABELS: Array<{ key: keyof typeof PERMISSIONS.owner; label: str
 ];
 
 export default function OwnerSettingsPage() {
+  const config = useDemoStore((s) => s.data.config);
+  const updateConfig = useDemoStore((s) => s.updateConfig);
   const [autoReminders, setAutoReminders] = useState(true);
-  const [onlineBooking, setOnlineBooking] = useState(true);
-  const [advanceRequired, setAdvanceRequired] = useState(false);
+  // Booking toggles are live demo config (Demo V1.1 §25): they drive the
+  // public page and booking flow, not just local state.
+  const onlineBooking =
+    config.bookingMode === "online_instant" || config.bookingMode === "online_request";
+  const advanceRequired = config.advance === "required";
 
   const save = () =>
     toast.success("Settings saved", { description: "Applied to demo state." });
@@ -79,7 +85,13 @@ export default function OwnerSettingsPage() {
                 Customers can book from the public page
               </p>
             </div>
-            <Switch checked={onlineBooking} onCheckedChange={setOnlineBooking} aria-label="Online booking" />
+            <Switch
+              checked={onlineBooking}
+              onCheckedChange={(v) =>
+                updateConfig({ bookingMode: v ? "online_instant" : "staff_only" })
+              }
+              aria-label="Online booking"
+            />
           </div>
           <Separator />
           <div className="flex items-center justify-between">
@@ -99,7 +111,13 @@ export default function OwnerSettingsPage() {
                 Reduce no-shows on weekend evening slots
               </p>
             </div>
-            <Switch checked={advanceRequired} onCheckedChange={setAdvanceRequired} aria-label="Require advance" />
+            <Switch
+              checked={advanceRequired}
+              onCheckedChange={(v) =>
+                updateConfig({ advance: v ? "required" : "optional" })
+              }
+              aria-label="Require advance"
+            />
           </div>
         </div>
       </section>

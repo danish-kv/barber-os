@@ -198,6 +198,10 @@ function nextApptId() {
 }
 
 export function buildOperations({ rng, now, customers, heroIds }: BuildArgs) {
+  // Reset module counters so back-to-back builds produce identical ids —
+  // the seed's determinism guarantee covers ids, not just content.
+  apptCounter = 0;
+  invoiceCounter = 1000;
   const appointments: Appointment[] = [];
   const invoices: Invoice[] = [];
   const waitlist: WaitlistEntry[] = [];

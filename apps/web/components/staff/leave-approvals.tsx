@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useDemoStore } from "@/lib/store";
-import { STAFF } from "@/lib/data/seed-static";
+import { staffById } from "@/lib/selectors";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ export function LeaveApprovals({ branchId }: { branchId: string | "all" }) {
   return (
     <ul className="grid gap-2">
       {requests.map((l) => {
-        const staff = STAFF.find((s) => s.id === l.staffId);
+        const staff = staffById(l.staffId, data);
         return (
           <li key={l.id} className="rounded-2xl border bg-card p-4">
             <div className="flex items-start gap-3">

@@ -109,6 +109,9 @@ export interface WorkingHours {
   off?: boolean;
 }
 
+export type EmploymentType = "permanent" | "temporary" | "contract";
+export type StaffAccessType = "app_user" | "managed_by_shop";
+
 export interface Staff {
   id: string;
   userId: string;
@@ -127,6 +130,14 @@ export interface Staff {
   color: string; // for calendar lane accent
   bio?: string;
   joinedAt: string;
+  /** defaults to "permanent" when absent (Demo V1 seed staff) */
+  employmentType?: EmploymentType;
+  /** defaults to "app_user" when absent */
+  accessType?: StaffAccessType;
+  /** ISO date "yyyy-MM-dd"; only for temporary/contract staff */
+  activeFrom?: string;
+  activeUntil?: string;
+  inviteStatus?: "none" | "pending";
 }
 
 export type LeaveStatus = "pending" | "approved" | "rejected";
@@ -453,7 +464,12 @@ export interface AppNotification {
   actionHref?: string;
 }
 
-export type SubscriptionPlanId = "free" | "pro" | "business" | "multi-branch";
+export type SubscriptionPlanId =
+  | "free"
+  | "solo"
+  | "pro"
+  | "business"
+  | "multi-branch";
 
 export interface SubscriptionPlanDef {
   id: SubscriptionPlanId;
@@ -485,6 +501,57 @@ export interface SupportTicket {
   priority: "low" | "medium" | "high";
   createdAt: string;
   lastMessage: string;
+}
+
+// ---------------------------------------------------------------------------
+// Demo V1.1 — flexible shop operating modes
+
+/** Demo business archetypes. "Multi-branch" on /demo is the premium world
+ * viewed across all branches — same seed. */
+export type ScenarioId = "solo" | "small" | "premium";
+
+export type BookingMode =
+  | "online_instant"
+  | "online_request"
+  | "staff_only"
+  | "walk_in_only";
+
+export type StaffSelectionPolicy = "customer" | "any" | "shop";
+
+export type AdvancePolicy = "none" | "optional" | "required";
+
+export interface ShopConfig {
+  bookingMode: BookingMode;
+  staffSelection: StaffSelectionPolicy;
+  advance: AdvancePolicy;
+  /** The owner has a StaffProfile and takes customers. */
+  ownerWorksAsStaff: boolean;
+  /** walk_in_only shops may allow joining the queue remotely. */
+  remoteQueueJoin: boolean;
+}
+
+export type BookingRequestStatus =
+  | "requested"
+  | "confirmed"
+  | "suggested"
+  | "declined";
+
+/** online_request mode: a customer's unconfirmed ask. Deliberately NOT an
+ * Appointment — requests never consume capacity until accepted. */
+export interface BookingRequest {
+  id: string;
+  businessId: string;
+  branchId: string;
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  serviceIds: string[];
+  preferredStart: string; // ISO
+  status: BookingRequestStatus;
+  suggestedStart?: string; // ISO, when status === "suggested"
+  createdAt: string;
+  decidedAt?: string;
+  appointmentId?: string; // set once confirmed
 }
 
 export interface AuthUser {

@@ -13,14 +13,15 @@ import {
   type Slot,
 } from "@barbershop-os/domain";
 import type { Staff } from "@/lib/types";
-import { BRANCHES, STAFF } from "@/lib/data/seed-static";
+import { ALL_BRANCHES } from "@/lib/data/seed-static";
 import { durationForSelection } from "@/lib/store";
+import { isStaffActiveOn, staffForBranch } from "@/lib/selectors";
 import type { DemoData } from "@/lib/data/seed";
 
 export type { Slot };
 
 function contextFor(data: DemoData, branchId: string): SchedulingContext {
-  const branch = BRANCHES.find((b) => b.id === branchId);
+  const branch = ALL_BRANCHES.find((b) => b.id === branchId);
   return {
     branchHours: branch?.hours ?? [],
     // Verbatim demo semantics: everything except cancelled/no-show holds
@@ -55,6 +56,8 @@ export function availableSlotsForStaff(
   addonIds: string[] = [],
   now = new Date()
 ): Slot[] {
+  // Temporary/contract staff have no availability outside their window.
+  if (!isStaffActiveOn(staff, day)) return [];
   return engineForStaff(
     contextFor(data, staff.branchId),
     staff,
@@ -73,7 +76,7 @@ export function availableSlotsAnyStaff(
   addonIds: string[] = [],
   now = new Date()
 ): Slot[] {
-  const staffList = STAFF.filter((s) => s.branchId === branchId);
+  const staffList = staffForBranch(data, branchId, { activeOn: day });
   return engineAnyStaff(
     contextFor(data, branchId),
     staffList,
@@ -99,7 +102,9 @@ export function nextAvailableLabel(
 }
 
 export function findGaps(data: DemoData, staffId: string, day: Date) {
-  const staff = STAFF.find((s) => s.id === staffId);
+  const staff = staffForBranch(data, "all", { includeInactive: true }).find(
+    (s) => s.id === staffId
+  );
   if (!staff) return [];
   return engineFindGaps(contextFor(data, staff.branchId), staff, day);
 }

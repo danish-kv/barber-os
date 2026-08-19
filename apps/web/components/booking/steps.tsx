@@ -12,7 +12,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { StarRating } from "@/components/shared/star-rating";
 import { useDemoStore } from "@/lib/store";
-import { SERVICES, ADDONS, STAFF } from "@/lib/data/seed-static";
+import { ALL_SERVICES, ADDONS } from "@/lib/data/seed-static";
+import { staffById, staffForBranch } from "@/lib/selectors";
 import {
   availableSlotsAnyStaff,
   availableSlotsForStaff,
@@ -37,7 +38,7 @@ export function ServiceStep({
   onToggle: (id: string) => void;
   lang: Language;
 }) {
-  const services = SERVICES.filter((s) => s.branchIds.includes(branchId));
+  const services = ALL_SERVICES.filter((s) => s.branchIds.includes(branchId));
   const byCategory = new Map<string, Service[]>();
   const order = ["hair", "beard", "spa", "color", "kids", "styling"];
   for (const s of services) {
@@ -129,7 +130,7 @@ export function AddonStep({
   onToggle: (id: string) => void;
 }) {
   const availableAddonIds = new Set(
-    serviceIds.flatMap((id) => SERVICES.find((s) => s.id === id)?.addonIds ?? [])
+    serviceIds.flatMap((id) => ALL_SERVICES.find((s) => s.id === id)?.addonIds ?? [])
   );
   const addons = ADDONS.filter((a) => availableAddonIds.has(a.id));
   if (addons.length === 0) return null;
@@ -196,10 +197,8 @@ export function BarberStep({
   lang: Language;
 }) {
   const data = useDemoStore((s) => s.data);
-  const eligible = STAFF.filter(
-    (st) =>
-      st.branchId === branchId &&
-      serviceIds.every((id) => st.serviceIds.includes(id))
+  const eligible = staffForBranch(data, branchId, { activeOn: new Date() }).filter(
+    (st) => serviceIds.every((id) => st.serviceIds.includes(id))
   );
 
   return (
@@ -314,7 +313,7 @@ export function TimeStep({
     if (anyStaff || !staffId) {
       return availableSlotsAnyStaff(data, branchId, selectedDay, serviceIds, addonIds);
     }
-    const staff = STAFF.find((s) => s.id === staffId);
+    const staff = staffById(staffId, data);
     if (!staff) return [];
     return availableSlotsForStaff(data, staff, selectedDay, serviceIds, addonIds);
   }, [data, branchId, staffId, anyStaff, selectedDay, serviceIds, addonIds]);
@@ -366,7 +365,7 @@ export function TimeStep({
           <p className="mt-1 text-xs text-muted-foreground">
             {format(selectedDay, "EEEE d MMM")} has no open slots
             {staffId && !anyStaff
-              ? ` for ${STAFF.find((s) => s.id === staffId)?.name}`
+              ? ` for ${staffById(staffId, data)?.name}`
               : ""}
             . Join the waitlist and we&apos;ll notify you if a slot opens.
           </p>
@@ -451,6 +450,7 @@ export function PaymentStep({
   onGuestName,
   onGuestPhone,
   needGuestDetails,
+  hidePaymentOptions = false,
   lang,
 }: {
   total: number;
@@ -461,6 +461,8 @@ export function PaymentStep({
   onGuestName: (v: string) => void;
   onGuestPhone: (v: string) => void;
   needGuestDetails: boolean;
+  /** Request mode: nothing is booked yet, so no payment is collected. */
+  hidePaymentOptions?: boolean;
   lang: Language;
 }) {
   return (
@@ -497,6 +499,12 @@ export function PaymentStep({
         </div>
       )}
 
+      {hidePaymentOptions ? (
+        <p className="rounded-xl bg-muted/60 px-3.5 py-2.5 text-xs text-muted-foreground">
+          You pay at the shop after your visit — nothing is charged for
+          sending a request.
+        </p>
+      ) : (
       <div>
         <h3 className="mb-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
           {t("book.payment", lang)}
@@ -547,6 +555,7 @@ export function PaymentStep({
           Payments are simulated in this demo — no real money moves.
         </p>
       </div>
+      )}
     </div>
   );
 }

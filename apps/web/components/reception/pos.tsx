@@ -36,7 +36,7 @@ import {
   maxRedeemableLoyalty,
 } from "@barbershop-os/domain";
 import { customerById, serviceNames, staffById } from "@/lib/selectors";
-import { SERVICES, MEMBERSHIP_PLANS, STAFF } from "@/lib/data/seed-static";
+import { ALL_SERVICES, MEMBERSHIP_PLANS } from "@/lib/data/seed-static";
 import { inr } from "@/lib/format";
 import type { Appointment, Invoice, InvoiceLineItem, PaymentMethod } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -88,7 +88,7 @@ function PosInner({
     appointment
       ? (appointment.serviceIds
           .map((sid) => {
-            const svc = SERVICES.find((s) => s.id === sid);
+            const svc = ALL_SERVICES.find((s) => s.id === sid);
             if (!svc) return null;
             return {
               id: liId(),
@@ -219,7 +219,7 @@ function PosInner({
   };
 
   const addService = (serviceId: string) => {
-    const svc = SERVICES.find((s) => s.id === serviceId);
+    const svc = ALL_SERVICES.find((s) => s.id === serviceId);
     if (!svc) return;
     setLineItems((prev) => [
       ...prev,
@@ -660,7 +660,7 @@ function PosInner({
         title="Add service"
       >
         <div className="grid gap-1.5 pb-4">
-          {SERVICES.filter((s) => s.branchIds.includes(branchId)).map((svc) => (
+          {ALL_SERVICES.filter((s) => s.branchIds.includes(branchId)).map((svc) => (
             <button
               key={svc.id}
               onClick={() => addService(svc.id)}
@@ -745,7 +745,7 @@ function ReceiptView({ invoice, onNew }: { invoice: Invoice; onNew: () => void }
       invoice.lineItems
         .map((li) => li.staffId)
         .filter(Boolean)
-        .map((id) => STAFF.find((s) => s.id === id)?.name)
+        .map((id) => staffById(id, data)?.name)
         .filter(Boolean)
     ),
   ];

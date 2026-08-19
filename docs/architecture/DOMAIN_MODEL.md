@@ -402,3 +402,107 @@ and advisory locks inside transactions cover every case above.
   (`Asia/Kolkata` default) for day-bucketing analytics.
 - Soft-delete only where UX needs undo (services, staff); hard rows elsewhere
   with status enums.
+
+## 9. Demo V1.1 amendments — flexible shop modes (solo / small local shops)
+
+Demo V1.1 proved four business archetypes (solo · small · premium · multi-
+branch) on one data model. These amendments fold what it validated into the
+production schema. Nothing above is invalidated; this section extends it.
+
+### 9.1 Multi-capability users
+
+**One person, several capabilities, one login.** The solo/small demo runs an
+owner who is also the working barber ("Danish · Owner · Barber") with **no
+role switching**. Production models this as one `BUSINESS_MEMBERSHIP` with
+`role = 'owner'` **and** a non-null `staff_profile_id` — role conveys
+authority, the staff profile conveys serviceability. The unified `/shop` app
+is the UI for any membership that has both. Decision 2 in §1 ("a user is not
+a role") already anticipated this; the amendment is that role and staff
+profile are **orthogonal on the same membership**, not separate memberships.
+
+### 9.2 StaffProfile without a User (managed staff)
+
+`STAFF_PROFILE.user_id` (via membership) becomes **nullable**. A shop can
+employ someone who never logs in — the demo's Nabeel (`accessType:
+"managed_by_shop"`): the owner books, queues and checks out on their behalf.
+
+```text
+STAFF_PROFILE additions
+  access_type      text  'app_user' | 'managed_by_shop'   default 'app_user'
+  employment_type  text  'permanent' | 'temporary' | 'contract'  default 'permanent'
+  active_from      date  nullable — temporary/contract only
+  active_until     date  nullable — temporary/contract only
+  invite_status    text  'none' | 'pending' | 'accepted'  default 'none'
+```
+
+Inviting a managed staff member to the app later (demo: simulated invite)
+creates the USER + membership and links it — the staff profile id, and all
+history hanging off it, never changes.
+
+### 9.3 Employment types & active windows
+
+- The availability engine returns **no slots outside
+  `[active_from, active_until]`** (demo enforces this in the adapter:
+  `isStaffActiveOn` gates `availableSlotsForStaff`, roster and queue).
+  Production keeps the same rule in `packages/domain` and adds a service-layer
+  guard on booking creation.
+- **Expiry never deletes.** Past appointments, invoices, and commission
+  entries keep their `staff_id`; performance reports include inactive staff
+  (`includeInactive` in the demo's `staffForBranch`). Reactivating a seasonal
+  barber for the next rush is an UPDATE of the window — history intact.
+- Seasonal presets (Onam / Eid / wedding season) are pure UI sugar over the
+  same two dates.
+
+### 9.4 Per-branch operating policy
+
+The demo's `ShopConfig` becomes a `BRANCH_POLICY` row (per branch, not per
+business — a chain can run walk-in-only in one location and online-instant in
+another):
+
+```text
+BRANCH_POLICY
+  branch_id           FK PK
+  booking_mode        text 'online_instant' | 'online_request' | 'staff_only' | 'walk_in_only'
+  staff_selection     text 'customer' | 'any' | 'shop'
+  advance_policy      text 'none' | 'optional' | 'required'
+  owner_works_as_staff bool
+  remote_queue_join   bool
+```
+
+Mode is enforced **server-side** at booking creation (a `staff_only` branch
+rejects public `POST /appointments`), and the public page renders
+mode-appropriate CTAs (Call/WhatsApp for `staff_only`; live wait + join-queue
+for `walk_in_only` when `remote_queue_join`). `staff_selection = 'shop'`
+additionally hides staff identity from public surfaces.
+
+### 9.5 BOOKING_REQUEST (online_request mode)
+
+A request is **not** an appointment status — it is a separate entity that
+never consumes capacity (demo-proven: pending requests leave availability
+untouched; the exclusion constraint in §7 never sees them).
+
+```text
+BOOKING_REQUEST
+  id, business_id, branch_id
+  customer_id        FK nullable (guest requests carry name/phone inline)
+  customer_name, customer_phone
+  service_ids        jsonb
+  preferred_start    timestamptz
+  status             'requested' | 'suggested' | 'confirmed' | 'declined'
+  suggested_start    timestamptz nullable
+  appointment_id     FK nullable — set on accept
+  created_at, decided_at
+```
+
+Accepting (owner) or accepting-a-suggestion (customer) creates the real
+APPOINTMENT in the same transaction and stamps `appointment_id`. Declined
+requests leave nothing behind.
+
+### 9.6 Additional invariants
+
+| # | Invariant | Enforcement |
+|---|---|---|
+| 14 | No bookings outside a staff active window | **Service layer** on create + engine returns no such slots; window changes don't touch existing rows (history preserved) |
+| 15 | Booking requests never consume capacity | **Model**: requests are not appointments; only accept creates one (txn) |
+| 16 | Public booking honors branch mode | **Service layer**: booking_mode checked on public create; staff-created bookings bypass (`staff_only` is exactly this path) |
+| 17 | Managed staff serviceable without login | **Model**: nullable user link; all operational FKs point at STAFF_PROFILE |

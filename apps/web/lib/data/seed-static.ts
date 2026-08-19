@@ -11,6 +11,18 @@ import type {
   PlatformShop,
 } from "@/lib/types";
 
+import {
+  SMALL_BRANCH,
+  SMALL_BUSINESS,
+  SMALL_SERVICES,
+  SMALL_STAFF,
+  SOLO_BRANCH,
+  SOLO_BUSINESS,
+  SOLO_OWNER_STAFF,
+  SOLO_SERVICES,
+} from "./seed-scenarios";
+
+
 export const BUSINESS: Business = {
   id: "biz_royalcuts",
   name: "Royal Cuts",
@@ -576,6 +588,18 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlanDef[] = [
     features: ["1 barber", "Basic booking", "Customer database"],
   },
   {
+    id: "solo",
+    name: "Solo",
+    pricePerMonth: 399,
+    features: [
+      "One working barber",
+      "Appointments & walk-ins",
+      "Live queue",
+      "Customer history",
+      "Basic POS & daily revenue",
+    ],
+  },
+  {
     id: "pro",
     name: "Pro",
     pricePerMonth: 799,
@@ -657,3 +681,27 @@ export const OTHER_PLATFORM_SHOPS: PlatformShop[] = [
   { id: "shop_urbanbarber", businessId: "biz_urbanbarber", ownerName: "Vishal Menon", plan: "pro", status: "active", branchCount: 1, mrr: 799, createdAt: "2025-03-15T00:00:00.000Z", city: "Kochi", supportOpenTickets: 0 },
   { id: "shop_stylecircle", businessId: "biz_stylecircle", ownerName: "Anitha Raj", plan: "free", status: "churned", branchCount: 1, mrr: 0, createdAt: "2024-08-04T00:00:00.000Z", city: "Kollam", supportOpenTickets: 0 },
 ];
+
+
+// ---------------------------------------------------------------------------
+// Demo V1.1 — scenario registries. Royal Cuts exports above stay exactly as
+// they were (the premium storyline depends on them); these unions let shared
+// lookups resolve entities from every demo business.
+
+export const ALL_BUSINESSES: Business[] = [
+  BUSINESS,
+  SOLO_BUSINESS,
+  SMALL_BUSINESS,
+];
+
+export const ALL_BRANCHES: Branch[] = [...BRANCHES, SOLO_BRANCH, SMALL_BRANCH];
+
+export const ALL_SERVICES: Service[] = [
+  ...SERVICES,
+  ...SOLO_SERVICES,
+  ...SMALL_SERVICES,
+];
+
+/** Every seed-defined staff member across scenarios. Runtime-added staff
+ * (temporary hires created in the demo) live in DemoData.extraStaff. */
+export const SEED_STAFF: Staff[] = [...STAFF, SOLO_OWNER_STAFF, ...SMALL_STAFF];

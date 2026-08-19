@@ -256,3 +256,34 @@ money moves.
   is generated from it — drift is a compile error.
 - Webhooks from providers are never versioned by us; adapters normalize into
   internal events.
+
+## 6. Demo V1.1 amendments — flexible shop modes
+
+New/changed surface validated by Demo V1.1 (see DOMAIN_MODEL.md §9):
+
+```text
+GET   /v1/branches/:id/policy                 → BRANCH_POLICY (public read is a filtered subset)
+PATCH /v1/branches/:id/policy                 owner/manager; drives public page + booking gating
+
+POST  /v1/public/shops/:slug/booking-requests   online_request mode only; guest-friendly
+GET   /v1/public/booking-requests/:id           status polling for the request page
+POST  /v1/booking-requests/:id/accept           staff; creates APPOINTMENT in-txn (optional new start)
+POST  /v1/booking-requests/:id/suggest          staff; body { suggestedStart }
+POST  /v1/booking-requests/:id/decline          staff
+POST  /v1/public/booking-requests/:id/accept-suggestion   customer accepts suggested time
+
+POST  /v1/staff                                body includes employmentType, accessType,
+                                               activeFrom/activeUntil (temporary/contract)
+POST  /v1/staff/:id/reactivate                 body { activeUntil } — window update, history untouched
+POST  /v1/staff/:id/invite                     managed → app_user upgrade (sends OTP invite)
+```
+
+Gating rules (server-authoritative, mirrors demo behavior):
+
+- `POST /v1/public/…/appointments` → **403 `branch_mode_forbidden`** unless
+  branch policy is `online_instant`.
+- `…/booking-requests` → 403 unless `online_request`.
+- Staff-authenticated appointment creation is allowed in **every** mode —
+  that is what `staff_only` means.
+- `staff_selection='shop'` strips staff identity from public availability
+  responses (slots carry no `staffId`).

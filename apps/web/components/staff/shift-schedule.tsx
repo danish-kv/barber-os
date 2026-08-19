@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { useDemoStore } from "@/lib/store";
-import { STAFF } from "@/lib/data/seed-static";
+import { staffForBranch } from "@/lib/selectors";
 import type { ShiftStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +34,7 @@ export function ShiftSchedule({
 
   const weekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset * 7);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const branchStaff = STAFF.filter((s) => s.branchId === branchId);
+  const branchStaff = staffForBranch(data, branchId, { includeInactive: true });
 
   const shiftFor = (staffId: string, dateKey: string) =>
     data.shifts.find((s) => s.staffId === staffId && s.date === dateKey);

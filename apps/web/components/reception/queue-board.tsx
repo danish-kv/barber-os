@@ -29,8 +29,12 @@ import {
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useDemoStore } from "@/lib/store";
-import { customerById, queueForBranch, serviceNames } from "@/lib/selectors";
-import { STAFF } from "@/lib/data/seed-static";
+import {
+  customerById,
+  queueForBranch,
+  serviceNames,
+  staffById,
+} from "@/lib/selectors";
 import { useNow } from "@/hooks/use-now";
 import { WalkInSheet } from "./walk-in-sheet";
 import { cn } from "@/lib/utils";
@@ -127,7 +131,7 @@ export function QueueBoard({
           <div className="grid gap-2 lg:grid-cols-2">
             {queue.serving.map((appt) => {
               const customer = customerById(data, appt.customerId);
-              const staff = STAFF.find((s) => s.id === appt.staffId);
+              const staff = staffById(appt.staffId, data);
               const remaining = Math.max(
                 1,
                 Math.round((new Date(appt.end).getTime() - now.getTime()) / 60000)
@@ -198,7 +202,7 @@ export function QueueBoard({
           <ol className="grid gap-2">
             {queue.waiting.map((appt, i) => {
               const customer = customerById(data, appt.customerId);
-              const preferred = STAFF.find((s) => s.id === appt.staffId);
+              const preferred = staffById(appt.staffId, data);
               return (
                 <li
                   key={appt.id}
@@ -243,7 +247,7 @@ export function QueueBoard({
                             }
                             startService(appt.id);
                             toast.success(
-                              `${customer?.name} → ${STAFF.find((s) => s.id === sid)?.name}`,
+                              `${customer?.name} → ${staffById(sid, data)?.name}`,
                               { description: "Service started." }
                             );
                           }}

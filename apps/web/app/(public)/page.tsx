@@ -206,6 +206,46 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ------------------------- SHOP ARCHETYPES ------------------------- */}
+      <section className="mx-auto max-w-6xl px-4 py-16 lg:px-6 lg:py-20">
+        <div className="max-w-2xl">
+          <h2 className="font-heading text-3xl font-semibold tracking-tight">
+            Built for the way your shop actually works
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            From one chair to multiple branches — start simple and grow without
+            switching systems. Take bookings by phone, online, or run pure
+            walk-ins; the app follows your rules, not the other way around.
+          </p>
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {(
+            [
+              ["Solo barber", "One chair, one phone — bookings by call, walk-ins, daily revenue."],
+              ["Small local shop", "You cut too. Add a seasonal barber for the Onam rush, no login needed."],
+              ["Premium salon", "Online booking, receptionist, memberships, loyalty."],
+              ["Multi-branch", "Every branch compared on one owner dashboard."],
+            ] as const
+          ).map(([title, body]) => (
+            <Link
+              key={title}
+              href="/demo"
+              className="group rounded-2xl border bg-card p-5 shadow-xs transition-shadow hover:shadow-md"
+            >
+              <h3 className="font-heading text-base font-semibold">{title}</h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary">
+                Try this shop
+                <ArrowRight
+                  className="size-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
       {/* ---------------------------- FEATURES ---------------------------- */}
       <section className="mx-auto max-w-6xl px-4 py-16 lg:px-6 lg:py-24">
         <div className="max-w-2xl">

@@ -1,4 +1,8 @@
 import type {
+  BookingRequest,
+  ScenarioId,
+  ShopConfig,
+  Staff,
   AppNotification,
   Appointment,
   Campaign,
@@ -18,6 +22,8 @@ import type {
   WaitlistEntry,
 } from "@/lib/types";
 import { Rng } from "./rng";
+import { buildSoloSeed } from "./seed-solo";
+import { buildSmallSeed } from "./seed-small";
 import { buildCustomers } from "./seed-customers";
 import { buildOperations } from "./seed-operations";
 import {
@@ -36,6 +42,17 @@ import {
 
 export interface DemoData {
   seededAt: string;
+  /** Which demo world this data belongs to (Demo V1.1). */
+  scenario: ScenarioId;
+  businessId: string;
+  branchId: string;
+  /** Operating style — editable in demo settings, affects public UX. */
+  config: ShopConfig;
+  /** Staff added at runtime (temporary hires). Seed staff stay static. */
+  extraStaff: Staff[];
+  /** Runtime edits to seed staff (invites, contract changes) merged by id. */
+  staffOverrides: Record<string, Partial<Staff>>;
+  bookingRequests: BookingRequest[];
   customers: Customer[];
   appointments: Appointment[];
   invoices: Invoice[];
@@ -55,7 +72,21 @@ export interface DemoData {
   supportTickets: SupportTicket[];
 }
 
-export function buildSeed(now = new Date()): DemoData {
+/** Premium (Royal Cuts) defaults reproduce Demo V1 behavior exactly. */
+export const PREMIUM_CONFIG: ShopConfig = {
+  bookingMode: "online_instant",
+  staffSelection: "customer",
+  advance: "optional",
+  ownerWorksAsStaff: false,
+  remoteQueueJoin: false,
+};
+
+export function buildSeed(
+  now = new Date(),
+  scenario: ScenarioId = "premium"
+): DemoData {
+  if (scenario === "solo") return buildSoloSeed(now);
+  if (scenario === "small") return buildSmallSeed(now);
   const rng = new Rng(42);
   const { customers, heroIds } = buildCustomers(rng, now);
   const { appointments, invoices, waitlist } = buildOperations({
@@ -78,6 +109,13 @@ export function buildSeed(now = new Date()): DemoData {
 
   return {
     seededAt: now.toISOString(),
+    scenario: "premium",
+    businessId: "biz_royalcuts",
+    branchId: "br_kakkanad",
+    config: { ...PREMIUM_CONFIG },
+    extraStaff: [],
+    staffOverrides: {},
+    bookingRequests: [],
     customers,
     appointments,
     invoices,

@@ -25,7 +25,10 @@ function check(name: string, cond: boolean, detail = "") {
   }
 }
 
+// Pin "now" to 7 PM so day-relative assertions (e.g. today's revenue) are
+// deterministic no matter what time of day the test runs.
 const now = new Date();
+now.setHours(19, 0, 0, 0);
 const data = buildSeed(now);
 
 console.log("— Seed shape —");

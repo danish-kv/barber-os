@@ -70,7 +70,7 @@ export function CustomerProfile({
   const plan = membership
     ? MEMBERSHIP_PLANS.find((p) => p.id === membership.planId)
     : undefined;
-  const preferredStaff = staffById(customer.preferredStaffId);
+  const preferredStaff = staffById(customer.preferredStaffId, data);
   const invoices = data.invoices
     .filter((i) => i.customerId === customerId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -255,7 +255,7 @@ export function CustomerProfile({
         </h2>
         <ul className="grid gap-1.5">
           {history.slice(0, 12).map((appt) => {
-            const st = staffById(appt.staffId);
+            const st = staffById(appt.staffId, data);
             const invoice = invoices.find((i) => i.appointmentId === appt.id);
             return (
               <li

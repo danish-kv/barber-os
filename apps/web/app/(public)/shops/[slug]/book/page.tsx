@@ -1,11 +1,16 @@
 "use client";
 
-import { use } from "react";
-import { notFound, useSearchParams } from "next/navigation";
+// Booking entry, gated by the shop's operating mode (Demo V1.1 §21):
+// staff-only and walk-in-only shops never see a booking form — visitors are
+// sent back to the profile page, which shows the right CTAs instead.
+
+import { use, useEffect } from "react";
+import { notFound, useRouter, useSearchParams } from "next/navigation";
 import { BookingFlow } from "@/components/booking/booking-flow";
 import { LanguageToggle } from "@/components/shared/language-toggle";
-import { BUSINESS, BRANCHES, SERVICES, STAFF } from "@/lib/data/seed-static";
+import { ALL_BRANCHES, ALL_BUSINESSES, ALL_SERVICES, SEED_STAFF } from "@/lib/data/seed-static";
 import { useHydrated } from "@/lib/demo-provider";
+import { useDemoStore } from "@/lib/store";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ShopBookPage({
@@ -15,16 +20,32 @@ export default function ShopBookPage({
 }) {
   const { slug } = use(params);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const hydrated = useHydrated();
+  const data = useDemoStore((s) => s.data);
 
-  if (slug !== BUSINESS.slug) notFound();
+  const business = ALL_BUSINESSES.find((b) => b.slug === slug);
+  const isActiveBusiness = business?.id === data.businessId;
+  const canBookOnline =
+    data.config.bookingMode === "online_instant" ||
+    data.config.bookingMode === "online_request";
 
+  useEffect(() => {
+    if (hydrated && business && (!isActiveBusiness || !canBookOnline)) {
+      router.replace(`/shops/${slug}` as "/");
+    }
+  }, [hydrated, business, isActiveBusiness, canBookOnline, router, slug]);
+
+  if (!business) notFound();
+
+  const branches = ALL_BRANCHES.filter((b) => b.businessId === business.id);
   const branchSlug = searchParams.get("branch");
   const branch =
-    BRANCHES.find((b) => b.slug === branchSlug) ??
-    BRANCHES.find((b) => b.isPrimary)!;
+    branches.find((b) => b.slug === branchSlug) ??
+    branches.find((b) => b.isPrimary) ??
+    branches[0];
 
-  const validServiceIds = new Set(SERVICES.map((s) => s.id));
+  const validServiceIds = new Set(ALL_SERVICES.map((s) => s.id));
   const preServices = (searchParams.get("services") ?? "")
     .split(",")
     .filter((id) => validServiceIds.has(id));
@@ -33,7 +54,7 @@ export default function ShopBookPage({
   const preStaff =
     staffParam === ""
       ? null
-      : staffParam && STAFF.some((s) => s.id === staffParam)
+      : staffParam && SEED_STAFF.some((s) => s.id === staffParam)
         ? staffParam
         : undefined;
 
@@ -42,7 +63,7 @@ export default function ShopBookPage({
       <div className="mb-2 flex justify-end">
         <LanguageToggle />
       </div>
-      {hydrated ? (
+      {hydrated && isActiveBusiness && canBookOnline ? (
         <BookingFlow
           branchId={branch.id}
           preselectServiceIds={preServices}
