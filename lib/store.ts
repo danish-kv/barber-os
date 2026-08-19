@@ -21,7 +21,7 @@ import type {
 import { buildSeed, type DemoData } from "@/lib/data/seed";
 import { SERVICES, ADDONS, STAFF, MEMBERSHIP_PLANS } from "@/lib/data/seed-static";
 
-const SEED_VERSION = 4;
+const SEED_VERSION = 5;
 const SEED_MAX_AGE_MS = 1000 * 60 * 60 * 18; // reseed after 18h so demo stays "today"
 
 export interface DemoSession {

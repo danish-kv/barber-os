@@ -59,7 +59,7 @@ export function QueueBoard({
   const freeStaff = queue.staffState.filter((s) => s.state === "free");
 
   return (
-    <div className="grid gap-6">
+    <div className="flex flex-col gap-6">
       {/* Staff strip */}
       <section aria-label="Barber availability">
         <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar lg:mx-0 lg:flex-wrap lg:px-0">

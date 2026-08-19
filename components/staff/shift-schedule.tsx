@@ -40,7 +40,7 @@ export function ShiftSchedule({
     data.shifts.find((s) => s.staffId === staffId && s.date === dateKey);
 
   return (
-    <div className="grid gap-3">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <Button

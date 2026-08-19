@@ -115,7 +115,7 @@ export function DayCalendar({
   };
 
   return (
-    <div className="grid gap-3">
+    <div className="flex flex-col gap-3">
       {/* Day switcher */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
@@ -204,7 +204,7 @@ export function DayCalendar({
                 {/* lane header */}
                 <div className="sticky top-0 z-10 flex h-10 items-center gap-2 border-b bg-card px-2.5">
                   <ToneAvatar name={staff.name} toneName={staff.avatarTone} size="xs" />
-                  <span className="truncate text-xs font-semibold">{staff.name}</span>
+                  <span className="min-w-0 truncate text-xs font-semibold">{staff.name}</span>
                   {off && (
                     <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
                       {staffOnLeave(staff.id) ? "Leave" : "Off"}

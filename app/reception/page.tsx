@@ -213,11 +213,13 @@ export default function ReceptionHome() {
                     return (
                       <li key={appt.id} className="flex items-center gap-2.5 text-sm">
                         <span className="size-2 shrink-0 animate-pulse rounded-full bg-success" />
-                        <span className="font-medium">{c?.name}</span>
-                        <span className="truncate text-muted-foreground">
-                          with {st?.name}
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="font-medium">{c?.name}</span>{" "}
+                          <span className="text-muted-foreground">
+                            with {st?.name}
+                          </span>
                         </span>
-                        <StatusBadge status="in-service" className="ml-auto" />
+                        <StatusBadge status="in-service" className="shrink-0" />
                       </li>
                     );
                   })}
@@ -228,8 +230,10 @@ export default function ReceptionHome() {
                         <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
                           {i + 1}
                         </span>
-                        <span className="font-medium">{c?.name}</span>
-                        <span className="ml-auto text-xs text-muted-foreground">
+                        <span className="min-w-0 flex-1 truncate font-medium">
+                          {c?.name}
+                        </span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
                           ~{appt.estimatedWaitMin ?? 10} min
                         </span>
                       </li>

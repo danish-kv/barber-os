@@ -223,7 +223,7 @@ export function buildOperations({ rng, now, customers, heroIds }: BuildArgs) {
   const demoOpenSlot = pickDemoOpenSlot(now);
   const waitlistSlot = pickWaitlistSlot(now);
 
-  const HIST_DAYS = 21;
+  const HIST_DAYS = 32; // cover the full 30-day analytics window
   const FUTURE_DAYS = 6;
 
   for (const branch of BRANCHES) {

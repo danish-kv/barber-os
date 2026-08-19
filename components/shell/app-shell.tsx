@@ -314,12 +314,19 @@ export function DashboardShell({
           <div className="flex h-14 items-center gap-2 px-4 lg:h-16 lg:px-6">
             <Link
               href={rootHref as "/"}
-              className="flex items-center gap-2 lg:hidden"
+              className="flex shrink-0 items-center gap-2 lg:hidden"
             >
               <span className="flex size-8 items-center justify-center rounded-lg bg-sidebar text-sidebar-primary">
                 <Scissors className="size-4" aria-hidden />
               </span>
-              <span className="font-heading text-base font-semibold">
+              {/* Owner header also carries the branch selector — drop the
+                  wordmark on very narrow phones to keep controls tappable. */}
+              <span
+                className={cn(
+                  "font-heading text-base font-semibold whitespace-nowrap",
+                  role === "owner" && "max-[430px]:hidden"
+                )}
+              >
                 {role === "admin" ? "OS Admin" : "Royal Cuts"}
               </span>
             </Link>

@@ -253,7 +253,7 @@ export default function OwnerDashboard() {
                     <span className="w-14 shrink-0 font-medium tabular-nums">
                       {timeLabel(a.start)}
                     </span>
-                    <span className="truncate text-muted-foreground">
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
                       {customerById(data, a.customerId)?.name} ·{" "}
                       {serviceNames(a.serviceIds)}
                     </span>
