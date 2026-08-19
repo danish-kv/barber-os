@@ -147,9 +147,17 @@ erDiagram
 ## 3. Scheduling & queue
 
 Demo evidence: `Appointment` holds `serviceIds[]`, `staffId | null` (any-barber),
-statuses `waitlisted|confirmed|checked-in|waiting|in-service|completed|cancelled|no-show`,
+demo statuses `waitlisted|confirmed|checked-in|waiting|in-service|completed|cancelled|no-show`,
 `source online|walk-in|phone`, advance fields, queue fields, and timestamps per
 transition. `WaitlistEntry` exists and converts on cancellation.
+
+> **Canonical production statuses** (resolved in Phase 0A): the demo's
+> separate `waiting` status is **not persisted** in production — a customer
+> who has checked in *is* waiting; "Waiting" is a queue projection over
+> `checked_in` (ordered by `queue_position`, anchored to
+> `service_started_at ?? checked_in_at` — the QA-proven rule). The demo
+> adapter's internal `waiting` string maps to production `checked_in`.
+> `pending_payment` and `expired` are added for online-payment holds.
 
 ```mermaid
 erDiagram
@@ -201,7 +209,7 @@ erDiagram
 **Queue is a projection, not a table.** The demo's `queueForBranch()` derives
 the live queue from appointment state — and QA proved the correct anchor is
 `service_started_at ?? checked_in_at`, not the slot date. Production keeps the
-queue as a *query over appointments* (status ∈ {checked_in, waiting,
+queue as a *query over appointments* (status ∈ {checked_in,
 in_service} anchored to today's check-in), plus `queue_position` assigned at
 check-in for stable ordering. A separate `QUEUE_ENTRY` table is **rejected**:
 it would duplicate appointment state and invite drift — walk-ins are just
@@ -209,14 +217,25 @@ appointments with `source='walk_in'` and `during` = now (exactly how
 `addWalkIn` works today). `APPOINTMENT_EVENT` provides the status history that
 the demo lacks.
 
-Statuses (superset of demo, with explicit transitions):
+Canonical state machine (persisted statuses only):
 
 ```text
-waitlisted → confirmed → checked_in → in_service → completed
-                    ↘ cancelled          ↘ cancelled(rare, refund path)
-                    ↘ no_show
-checked_in → no_show (abandoned queue after N min, job-driven)
+waitlisted ──────────────► confirmed
+pending_payment ─┬───────► confirmed        (payment captured in time)
+                 ├───────► expired          (10-min TTL job; capacity freed)
+                 └───────► cancelled
+confirmed ───────┬───────► checked_in       (sets queue_position; enters queue projection)
+                 ├───────► cancelled
+                 └───────► no_show
+checked_in ──────┬───────► in_service
+                 ├───────► no_show          (abandoned queue after N min, job-driven)
+                 └───────► cancelled        (rare; refund path)
+in_service ──────────────► completed
 ```
+
+`waiting` is deliberately absent — it is the queue projection of
+`checked_in`, never a stored status. Terminal: `completed`, `cancelled`,
+`no_show`, `expired`.
 
 ## 4. Orders, payments, money
 
@@ -301,6 +320,22 @@ blends some of these):
 Production replaces the demo's three mutable numbers with append-only ledgers.
 Cached balances are allowed but must be reconcilable by summation.
 
+**When each ledger row is written** (resolved in Phase 0A — no side effect
+runs at both stages):
+
+| Side effect | Service completion txn | Checkout txn |
+|---|---|---|
+| Appointment status transition | ✅ `in_service→completed` | — (`order_id` backlink only) |
+| STOCK_MOVEMENT `service_consumption` | ✅ | ❌ never |
+| STOCK_MOVEMENT `product_sale` | ❌ | ✅ |
+| "Ready for checkout" visibility / event | ✅ (outbox `service.completed`) | — |
+| ORDER + lines + receipt sequence | ❌ | ✅ |
+| MEMBERSHIP_USAGE | ❌ | ✅ |
+| LOYALTY_TXN redeem **and** earn | ❌ | ✅ |
+| COMMISSION_ENTRY (rule snapshot) | ❌ | ✅ |
+| Advance allocation + PAYMENT rows | ❌ | ✅ |
+| Revenue recognition | ❌ | ✅ (order paid) |
+
 ```text
 LOYALTY_TXN(id, business_id, customer_id, points_delta, kind: earn|redeem|bonus|expire|adjust,
             order_id?, reason, created_at)
@@ -341,7 +376,8 @@ table (start with columns + audit log), CustomerSegment materialization
 
 | # | Invariant | Enforcement |
 |---|---|---|
-| 1 | No overlapping appointments per staff | **DB**: `EXCLUDE USING gist (staff_id WITH =, during WITH &&) WHERE (status IN ('confirmed','checked_in','in_service'))` — plus service-layer pre-check for friendly errors |
+| 1 | No overlapping appointments per staff | **DB**: `EXCLUDE USING gist (staff_id WITH =, during WITH &&) WHERE (status IN ('pending_payment','confirmed','checked_in','in_service'))` — a live `pending_payment` hold **consumes capacity**; plus service-layer pre-check for friendly errors |
+| 1b | Payment holds expire | **Job + status guard**: `appointment.expire_pending_payment` runs every minute, `UPDATE … SET status='expired' WHERE status='pending_payment' AND created_at < now()-'10 min'` — leaving the exclusion set frees the slot atomically. A payment webhook that arrives *after* expiry finds the guard `WHERE status='pending_payment'` failing → the capture is recorded, the customer is auto-refunded (or offered the next slot) via the payments module; money is never silently kept |
 | 2 | No double-booked resource | **DB**: same pattern on APPOINTMENT_RESOURCE (resource_id, during) |
 | 3 | Checkout charged once despite client retry | **Idempotency key** unique on ORDER + API replay returns original response |
 | 4 | Completing a service twice must not double loyalty/stock/commission | **Transaction + status guard**: `UPDATE appointment SET status='completed' WHERE id=$1 AND status='in_service'`; affected-rows≠1 → 409; all fan-out in same txn |

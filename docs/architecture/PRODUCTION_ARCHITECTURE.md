@@ -138,7 +138,7 @@ authoritative inventory of commands production must support:
 ### 3.1 Monorepo layout
 
 ```text
-saloq/
+<repo-root>/
 ├── apps/
 │   ├── web/            # today's Next.js app (moved, not rewritten)
 │   └── api/            # NestJS modular monolith
@@ -239,6 +239,15 @@ flowchart LR
 Environments: `production` and `staging` are separate Fly apps + separate
 Supabase projects + separate Razorpay/WhatsApp credentials. No shared
 resources between them, ever.
+
+### 4.1 Naming & branding (resolved in Phase 0A)
+
+The commercial product name is **not final**. Nothing infrastructure-shaped
+may embed a brand: public hosts come from env (`API_PUBLIC_URL`,
+`WEB_PUBLIC_URL`), display names from `PRODUCT_NAME`. Internal package scope
+is the neutral `@barbershop-os/*`; NestJS modules are domain-named (never
+brand-named). A future rebrand therefore touches env values, display strings
+and marketing pages only — zero package/module renames.
 
 ---
 

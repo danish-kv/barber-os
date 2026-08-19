@@ -8,7 +8,9 @@
 
 ## 1. Conventions
 
-- Base: `https://api.saloq.in/v1`
+- Base: `https://api.<API_DOMAIN>/v1` — the host comes from deploy-time
+  configuration (`API_PUBLIC_URL`); no product domain is hard-coded anywhere
+  in code or docs (final brand TBD; "Barbershop OS" is the internal name).
 - AuthN: httpOnly session cookie (web) or `Authorization: Bearer <opaque token>`
   (future native apps). See SECURITY_AND_TENANCY.md.
 - Tenancy: business scope comes from the URL (`/businesses/:businessId/…`);
@@ -114,8 +116,11 @@ Idempotency-Key: 0c1f…
 ```
 `409 slot_conflict` when the exclusion constraint rejects; response includes
 3 alternative slots. If `paymentPolicy != pay_at_shop`, the appointment is
-created in `status: "pending_payment"` with a 10-min TTL hold (job expires
-it) — capacity is held by the row itself via the exclusion constraint.
+created in `status: "pending_payment"` with a 10-min TTL hold — capacity is
+held by the row itself because `pending_payment` **is part of the exclusion
+constraint's status set** (DOMAIN_MODEL invariants #1/#1b). On TTL expiry a
+job flips it to `expired`, which frees the slot; a payment webhook landing
+after expiry triggers auto-refund rather than resurrection.
 
 ### 3.3 Check-in / start / complete / no-show (state commands)
 

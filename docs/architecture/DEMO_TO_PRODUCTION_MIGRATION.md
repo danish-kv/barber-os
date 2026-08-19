@@ -94,6 +94,11 @@ For each roadmap phase (PRODUCTION_ROADMAP.md):
 4. Ship; the demo adapter for that domain stays in the tree (it still powers
    `/demo`).
 
+Status vocabulary note: the demo adapter persists an internal `waiting`
+status; production persists `checked_in` only (waiting = queue projection,
+DOMAIN_MODEL.md §3). The api adapter maps demo-vocabulary reads so screens
+need no change; the demo adapter keeps its historical string untouched.
+
 The **storyline test is the migration contract**: `scripts/storyline-test.mts`
 assertions (booking → check-in queue membership → start/complete →
 stock/loyalty/membership/commission/revenue effects → leave → PO) get a

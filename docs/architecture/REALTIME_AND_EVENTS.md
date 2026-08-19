@@ -67,16 +67,24 @@ Payload convention:
 The demo's `completeService` + `checkout` collapse many effects into one
 synchronous mutation. Production splits by **consistency requirement**:
 
-**Same DB transaction (must never be partially true):**
-- appointment status transition (with status-guard `WHERE`)
-- ORDER + ORDER_LINEs + totals
-- PAYMENT state changes
+**Two distinct transactions — no side effect runs in both**
+(full table in DOMAIN_MODEL.md §5):
+
+*Service-completion transaction:*
+- appointment `in_service→completed` (status-guard `WHERE`)
+- STOCK_MOVEMENT rows of kind `service_consumption` (+ cached qty)
+- outbox `service.completed` (drives "ready for checkout")
+
+*Checkout/order transaction:*
+- ORDER + ORDER_LINEs + totals + receipt number allocation
+- PAYMENT state changes / advance allocation
 - MEMBERSHIP_USAGE rows
-- LOYALTY_TXN rows (+ cached balance)
-- STOCK_MOVEMENT rows (+ cached qty)
+- LOYALTY_TXN rows — redeem and earn (+ cached balance)
+- STOCK_MOVEMENT rows of kind `product_sale` only
 - COMMISSION_ENTRY rows (rule snapshot)
-- receipt number allocation
-- **outbox row insert** (same txn — this is the reliability hinge)
+- outbox `order.completed`
+
+Both end with the **outbox row insert in the same txn** — the reliability hinge.
 
 **Async via outbox → jobs (retryable, eventually consistent):**
 - WhatsApp/SMS/push messages
@@ -204,7 +212,7 @@ flowchart TD
 | outbox.relay | poll | continuous (≤1s) |
 | whatsapp.send / sms.send | event | on demand + retries |
 | appointment.reminder | cron scan | every 5 min (T-60min window, per-business config) |
-| appointment.expire_pending_payment | cron | every minute (10-min TTL holds) |
+| appointment.expire_pending_payment | cron | every minute; status-guarded flip `pending_payment→expired`, which removes the row from the overlap-exclusion set and frees capacity |
 | queue.abandon_check | cron | every 10 min (checked_in > X min, flag for no-show) |
 | waitlist.notify | `appointment.cancelled` | on demand |
 | membership.renewal | cron daily | renewal_due events + status flips |
