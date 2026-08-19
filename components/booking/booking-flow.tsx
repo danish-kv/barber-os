@@ -339,7 +339,8 @@ export function BookingFlow({
           {serviceIds.length > 0 && (
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span className="min-w-0 flex-1 truncate">
-                {serviceIds.length} {t("book.services", lang)} ·{" "}
+                {serviceIds.length}{" "}
+                {t(serviceIds.length === 1 ? "book.service" : "book.services", lang)} ·{" "}
                 {durationLabel(totalDuration)}
                 {slot ? ` · ${format(slot.start, "EEE d MMM, h:mm a")}` : ""}
               </span>

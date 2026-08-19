@@ -364,7 +364,7 @@ export function TimeStep({
         <div className="mt-4 rounded-xl border border-dashed p-6 text-center">
           <p className="text-sm font-medium">{t("book.noSlots", lang)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {format(selectedDay, "EEEE d MMM")} is fully booked
+            {format(selectedDay, "EEEE d MMM")} has no open slots
             {staffId && !anyStaff
               ? ` for ${STAFF.find((s) => s.id === staffId)?.name}`
               : ""}

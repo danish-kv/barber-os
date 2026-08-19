@@ -94,9 +94,14 @@ export interface QueueView {
 
 export function queueForBranch(data: DemoData, branchId: string, now = new Date()): QueueView {
   const today = startOfDay(now);
-  const todays = data.appointments.filter(
-    (a) => a.branchId === branchId && isSameDay(new Date(a.start), today)
-  );
+  // Queue membership is anchored to when the customer actually checked in /
+  // started service — not the booked slot — so an early check-in (e.g. for a
+  // next-day slot) still appears in today's live queue.
+  const todays = data.appointments.filter((a) => {
+    if (a.branchId !== branchId) return false;
+    const anchor = a.serviceStartedAt ?? a.checkedInAt ?? a.start;
+    return isSameDay(new Date(anchor), today);
+  });
   const serving = todays
     .filter((a) => a.status === "in-service")
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());

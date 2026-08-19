@@ -53,15 +53,20 @@ export default function StaffHome() {
   const todays = appointmentsForDay(data, BRANCH_ID, now).filter(
     (a) => a.staffId === STAFF_ID
   );
-  const current = todays.find((a) => a.status === "in-service");
-  const upNext = todays
-    .filter((a) => ["confirmed", "waiting", "checked-in"].includes(a.status))
-    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-  const next = upNext[0];
+  // "Current" is whoever is actually in the chair — even if their booked slot
+  // is on another day (early check-in near closing time).
+  const current = data.appointments.find(
+    (a) => a.staffId === STAFF_ID && a.status === "in-service"
+  );
   const queue = queueForBranch(data, BRANCH_ID, now);
   const myWaiting = queue.waiting.filter(
     (a) => a.staffId === STAFF_ID || a.requestedAnyStaff
   );
+  const upNext = [
+    ...myWaiting,
+    ...todays.filter((a) => a.status === "confirmed"),
+  ].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  const next = upNext[0];
 
   const completedToday = todays.filter((a) => a.status === "completed");
   const myInvoicesToday = data.invoices.filter(

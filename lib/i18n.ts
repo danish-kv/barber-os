@@ -36,6 +36,7 @@ const DICT = {
   "book.popular": { en: "Popular", ml: "ജനപ്രിയം" },
   "book.almostFull": { en: "Almost Full", ml: "ഏതാണ്ട് നിറഞ്ഞു" },
   "book.services": { en: "services", ml: "സേവനങ്ങൾ" },
+  "book.service": { en: "service", ml: "സേവനം" },
   "book.min": { en: "min", ml: "മിനിറ്റ്" },
 
   // Customer home

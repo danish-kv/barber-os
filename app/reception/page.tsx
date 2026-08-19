@@ -50,7 +50,13 @@ export default function ReceptionHome() {
     )
     .slice(0, 8);
 
-  const unpaid = todays.filter((a) => a.status === "completed" && !a.invoiceId);
+  const unpaid = data.appointments.filter(
+    (a) =>
+      a.branchId === BRANCH_ID &&
+      a.status === "completed" &&
+      !a.invoiceId &&
+      new Date(a.completedAt ?? a.start).toDateString() === now.toDateString()
+  );
   const freeBarbers = queue.staffState.filter((s) => s.state === "free");
 
   return (

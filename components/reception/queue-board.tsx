@@ -335,7 +335,7 @@ function ReadyForCheckout({
       a.branchId === branchId &&
       a.status === "completed" &&
       !a.invoiceId &&
-      new Date(a.start).toDateString() === today
+      new Date(a.completedAt ?? a.start).toDateString() === today
   );
   if (unpaid.length === 0) return null;
   return (
