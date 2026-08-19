@@ -8,12 +8,15 @@ barber-os-lemon.vercel.app.
 **Baseline verification commands:**
 
 ```bash
-npm run lint          # 0 problems
-npm run typecheck     # clean
-npm run build         # 78 static pages
-npm test              # data-layer smoke (seed, availability, queue, metrics)
-npx tsx scripts/storyline-test.mts   # 23-assertion cross-role storyline (flows A–H)
+pnpm lint             # all workspaces, 0 problems
+pnpm typecheck        # clean
+pnpm build            # packages + api + web (78 static pages)
+pnpm test             # domain unit tests + api tests + demo smoke + storyline
+pnpm test:storyline   # 23-assertion cross-role storyline (flows A–H)
 ```
+
+(Since Phase 0A the repo is a pnpm/Turborepo monorepo — the web app lives in
+`apps/web`; the storyline test path is `apps/web/scripts/storyline-test.mts`.)
 
 ## Documents
 

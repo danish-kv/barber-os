@@ -24,7 +24,7 @@ const now = new Date();
 
 // ---- Flow A: customer books Haircut+Beard with Akhil (today or tomorrow) ----
 const akhil = STAFF.find((s) => s.id === "st_akhil")!;
-let slot = availableSlotsForStaff(S.data, akhil, now, ["sv_haircutbeard"], [], now)[0]
+const slot = availableSlotsForStaff(S.data, akhil, now, ["sv_haircutbeard"], [], now)[0]
   ?? availableSlotsForStaff(S.data, akhil, addDays(now, 1), ["sv_haircutbeard"], [], now)[0];
 check("bookable Akhil slot exists", !!slot);
 

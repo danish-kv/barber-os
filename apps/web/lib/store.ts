@@ -20,6 +20,11 @@ import type {
 } from "@/lib/types";
 import { buildSeed, type DemoData } from "@/lib/data/seed";
 import { SERVICES, ADDONS, STAFF, MEMBERSHIP_PLANS } from "@/lib/data/seed-static";
+import {
+  computeCheckoutTotals,
+  totalDurationMin,
+  totalPrice,
+} from "@barbershop-os/domain";
 
 const SEED_VERSION = 5;
 const SEED_MAX_AGE_MS = 1000 * 60 * 60 * 18; // reseed after 18h so demo stays "today"
@@ -149,16 +154,15 @@ function uid(prefix: string) {
 const serviceMap = new Map(SERVICES.map((s) => [s.id, s]));
 const addonMap = new Map(ADDONS.map((a) => [a.id, a]));
 
+// Selection totals delegate to the shared domain package, bound to the demo
+// catalog. (Demo money is rupee numbers; production uses paise — see
+// @barbershop-os/domain money notes.)
 export function durationForSelection(serviceIds: string[], addonIds: string[]) {
-  const svc = serviceIds.reduce((t, id) => t + (serviceMap.get(id)?.durationMin ?? 0), 0);
-  const add = addonIds.reduce((t, id) => t + (addonMap.get(id)?.durationMin ?? 0), 0);
-  return svc + add;
+  return totalDurationMin(serviceIds, addonIds, serviceMap, addonMap);
 }
 
 export function priceForSelection(serviceIds: string[], addonIds: string[]) {
-  const svc = serviceIds.reduce((t, id) => t + (serviceMap.get(id)?.price ?? 0), 0);
-  const add = addonIds.reduce((t, id) => t + (addonMap.get(id)?.price ?? 0), 0);
-  return svc + add;
+  return totalPrice(serviceIds, addonIds, serviceMap, addonMap);
 }
 
 const initialSession: DemoSession = {
@@ -524,38 +528,31 @@ export const useDemoStore = create<DemoState>()(
           ? MEMBERSHIP_PLANS.find((p) => p.id === membership.planId)
           : undefined;
 
-        const subtotal = args.lineItems.reduce((s, li) => s + li.price * li.qty, 0);
-        // Membership: included services become free (up to remaining qty); plus % discount on the rest.
-        let membershipDiscount = 0;
-        const usageDelta: Record<string, number> = {};
-        if (membership && plan) {
-          for (const li of args.lineItems) {
-            if (li.kind !== "service") continue;
-            const inc = plan.includedServices.find((i) => i.serviceId === li.refId);
-            if (!inc) continue;
-            const used = (membership.usage[li.refId] ?? 0) + (usageDelta[li.refId] ?? 0);
-            const remaining = inc.qty - used;
-            if (remaining > 0) {
-              const freeQty = Math.min(remaining, li.qty);
-              membershipDiscount += li.price * freeQty;
-              usageDelta[li.refId] = (usageDelta[li.refId] ?? 0) + freeQty;
-            }
-          }
-          const productSubtotal = args.lineItems
-            .filter((li) => li.kind === "product")
-            .reduce((s, li) => s + li.price * li.qty, 0);
-          membershipDiscount += Math.round((productSubtotal * plan.discountPercent) / 100);
-        }
-
-        const loyaltyRedeemed = Math.floor(args.loyaltyPointsUsed / 100) * 100 > 0
-          ? args.loyaltyPointsUsed // 1 point = ₹1 in this demo, redeemed in ₹100 blocks
-          : 0;
-
+        // Checkout math lives in @barbershop-os/domain — the exact demo
+        // arithmetic (pinned by the storyline test), now shared with the POS
+        // preview and, later, the authoritative API.
         const advanceAlreadyPaid = appt?.advancePaid ? appt.advanceAmount ?? 0 : 0;
-        const total = Math.max(
-          0,
-          subtotal - args.discount - membershipDiscount - loyaltyRedeemed
-        ) + args.tip - advanceAlreadyPaid;
+        const totals = computeCheckoutTotals({
+          lines: args.lineItems,
+          membership:
+            membership && plan
+              ? {
+                  includedServices: plan.includedServices,
+                  discountPercent: plan.discountPercent,
+                  usage: membership.usage,
+                }
+              : null,
+          discount: args.discount,
+          loyaltyPointsUsed: args.loyaltyPointsUsed,
+          tip: args.tip,
+          advancePaid: advanceAlreadyPaid,
+        });
+        const {
+          subtotal,
+          membershipDiscount,
+          membershipUsageDelta: usageDelta,
+          loyaltyRedeemed,
+        } = totals;
 
         const receiptNumber = `RC-${Math.floor(2000 + Math.random() * 8000)}`;
         const invoice: Invoice = {
@@ -571,7 +568,7 @@ export const useDemoStore = create<DemoState>()(
           loyaltyPointsUsed: args.loyaltyPointsUsed,
           tip: args.tip,
           tax: 0,
-          total: Math.max(0, total),
+          total: totals.totalDue,
           paymentMethods:
             advanceAlreadyPaid > 0
               ? [
@@ -585,7 +582,7 @@ export const useDemoStore = create<DemoState>()(
           receiptNumber,
         };
 
-        const pointsEarned = Math.floor(Math.max(0, total) / 10);
+        const pointsEarned = totals.pointsEarned;
 
         set((s2) => {
           const existingAccount = s2.data.loyaltyAccounts.find(

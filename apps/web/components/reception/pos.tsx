@@ -31,6 +31,10 @@ import { BottomSheet } from "@/components/shared/bottom-sheet";
 import { ToneAvatar } from "@/components/shared/tone-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useDemoStore } from "@/lib/store";
+import {
+  computeCheckoutTotals,
+  maxRedeemableLoyalty,
+} from "@barbershop-os/domain";
 import { customerById, serviceNames, staffById } from "@/lib/selectors";
 import { SERVICES, MEMBERSHIP_PLANS, STAFF } from "@/lib/data/seed-static";
 import { inr } from "@/lib/format";
@@ -127,44 +131,58 @@ function PosInner({
     (i) => i.branchId === branchId && i.sellable && i.quantity > 0
   );
 
-  // ---- preview math (mirrors store.checkout rules) ----
-  const subtotal = lineItems.reduce((s, li) => s + li.price * li.qty, 0);
+  // ---- preview math: the SAME shared function the demo store commits with
+  // (@barbershop-os/domain computeCheckoutTotals) — the old duplicated
+  // implementation is gone. Client previews are for responsiveness only; in
+  // production the server's /orders/preview is authoritative.
+  const entitlement = useMemo(
+    () =>
+      membership && plan
+        ? {
+            includedServices: plan.includedServices,
+            discountPercent: plan.discountPercent,
+            usage: membership.usage,
+          }
+        : null,
+    [membership, plan]
+  );
 
-  const membershipDiscount = useMemo(() => {
-    if (!membership || !plan) return 0;
-    let disc = 0;
-    const usageDelta: Record<string, number> = {};
-    for (const li of lineItems) {
-      if (li.kind !== "service") continue;
-      const inc = plan.includedServices.find((i) => i.serviceId === li.refId);
-      if (!inc) continue;
-      const used = (membership.usage[li.refId] ?? 0) + (usageDelta[li.refId] ?? 0);
-      const remaining = inc.qty - used;
-      if (remaining > 0) {
-        const freeQty = Math.min(remaining, li.qty);
-        disc += li.price * freeQty;
-        usageDelta[li.refId] = (usageDelta[li.refId] ?? 0) + freeQty;
-      }
-    }
-    const productSubtotal = lineItems
-      .filter((li) => li.kind === "product")
-      .reduce((s, li) => s + li.price * li.qty, 0);
-    disc += Math.round((productSubtotal * plan.discountPercent) / 100);
-    return disc;
-  }, [lineItems, membership, plan]);
+  const baseTotals = useMemo(
+    () =>
+      computeCheckoutTotals({
+        lines: lineItems,
+        membership: entitlement,
+        discount,
+        loyaltyPointsUsed: 0,
+        tip: 0,
+        advancePaid: 0,
+      }),
+    [lineItems, entitlement, discount]
+  );
+  const subtotal = baseTotals.subtotal;
+  const membershipDiscount = baseTotals.membershipDiscount;
 
   const maxLoyaltyBlocks = Math.floor((loyalty?.points ?? 0) / 100);
-  const afterDiscounts = Math.max(0, subtotal - discount - membershipDiscount);
-  const usableBlocks = Math.min(maxLoyaltyBlocks, Math.floor(afterDiscounts / 100));
-  const loyaltyPointsUsed = useLoyalty ? usableBlocks * 100 : 0;
+  const maxRedeem = maxRedeemableLoyalty(
+    loyalty?.points ?? 0,
+    subtotal,
+    discount,
+    membershipDiscount
+  );
+  const usableBlocks = maxRedeem / 100;
+  const loyaltyPointsUsed = useLoyalty ? maxRedeem : 0;
   const advance = appointment?.advancePaid ? (appointment.advanceAmount ?? 0) : 0;
   const fullPrepaid =
     appointment?.paymentPreference === "full" && appointment.advancePaid;
   const prepaidAmount = fullPrepaid ? subtotal : advance;
-  const total = Math.max(
-    0,
-    afterDiscounts - loyaltyPointsUsed + tip - prepaidAmount
-  );
+  const total = computeCheckoutTotals({
+    lines: lineItems,
+    membership: entitlement,
+    discount,
+    loyaltyPointsUsed,
+    tip,
+    advancePaid: prepaidAmount,
+  }).totalDue;
 
   const updateQty = (id: string, delta: number) => {
     setLineItems((prev) =>

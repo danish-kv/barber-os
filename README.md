@@ -1,36 +1,109 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Barbershop OS
 
-## Getting Started
+The operating system for modern barbershops and salons — bookings, walk-in
+queue, staff, customers, POS, memberships, loyalty, inventory and analytics.
+Built mobile-first for the Indian market (English · മലയാളം).
 
-First, run the development server:
+> "Barbershop OS" is the internal working name; the commercial brand is
+> deliberately not hard-coded anywhere (see
+> `docs/architecture/PRODUCTION_ARCHITECTURE.md` §4.1).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+**Live demo (Demo V1, fully client-side):** https://barber-os-lemon.vercel.app/demo
+— one connected shop, six switchable personas, deterministic seeded data,
+zero backend.
+
+## Repository structure
+
+```text
+apps/
+  web/        Next.js 16 app — Demo V1 (83 routes, 6 personas) and the future
+              production frontend. Demo state lives in a persisted Zustand
+              store (lib/store.ts) backed by a deterministic seed.
+  api/        NestJS (Fastify) modular monolith — the production backend.
+              Phase 0A: skeleton + GET /v1/health only.
+packages/
+  domain/     Pure TypeScript business rules shared by web and api:
+              scheduling/availability engine, checkout math, queue wait
+              estimation, money primitives. No framework/browser/DB deps.
+  contracts/  Zod schemas for API contracts (error envelope, pagination,
+              primitives). Grows phase by phase.
+docs/
+  architecture/  Production blueprint (start at README.md there).
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Authority rule:** `packages/domain` runs in both apps, but only the API's
+results are authoritative. The web app uses it for instant previews; money
+never moves based on a client-side calculation.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Prerequisites
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Node ≥ 20 (developed on 24)
+- pnpm 10 (`corepack enable` honors the `packageManager` field)
 
-## Learn More
+## Local development
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm install
+pnpm dev            # everything via turbo (web :3000, api :4000, package watchers)
+# or individually:
+pnpm dev:web
+pnpm dev:api
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The API needs no database or secrets in Phase 0A. Optional env for the api:
+`PORT`, `HOST`, `LOG_LEVEL`, `CORS_ORIGINS` (required when
+`NODE_ENV=staging|production`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Commands
 
-## Deploy on Vercel
+```bash
+pnpm lint        # all workspaces
+pnpm typecheck
+pnpm test        # domain unit tests + api tests + web demo regression suite
+pnpm build       # packages → api → web production build
+pnpm test:storyline   # just the mandatory cross-role demo storyline test
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Demo V1
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`/demo` runs entirely in the browser (Zustand + localStorage + deterministic
+seed) and must keep working forever — it is the permanent sales demo and the
+behavioral reference for the production API. Its protection:
+
+- `apps/web/scripts/flow-test.mts` — data-layer smoke (seed, availability, queue, metrics)
+- `apps/web/scripts/storyline-test.mts` — 23 assertions across
+  booking → check-in → queue → serve → POS → loyalty/membership/stock/commission → owner metrics
+
+Reset demo data anytime from the in-app avatar menu. Frozen baseline: git tag
+`demo-v1`.
+
+## API
+
+```bash
+pnpm dev:api
+curl localhost:4000/v1/health
+# {"status":"ok","service":"api","env":"local","version":"0.1.0"}
+```
+
+Foundations included: typed zod env validation, structured pino logs with
+request-ids and PII redaction, the shared error envelope, `@fastify/helmet`,
+env-driven CORS, graceful SIGTERM/SIGINT shutdown, and `rawBody` enabled for
+future webhook signature verification.
+
+## Deployment
+
+**Web (Vercel):** set the project's **Root Directory to `apps/web`** (one-time
+dashboard setting; "Include files outside root directory" stays on). Vercel
+detects pnpm from the lockfile/`packageManager` and Next.js automatically;
+`outputFileTracingRoot` in `apps/web/next.config.ts` handles monorepo tracing.
+No other configuration required.
+
+**API:** not deployed yet — target is Fly.io (Mumbai) per
+`docs/architecture/PRODUCTION_ARCHITECTURE.md`.
+
+## Architecture documentation
+
+Start at [`docs/architecture/README.md`](docs/architecture/README.md) —
+production stack decision, domain model & invariants, API design,
+realtime/events, security & tenancy, demo→production migration, and the
+phased roadmap (current status: Phase 0A complete).

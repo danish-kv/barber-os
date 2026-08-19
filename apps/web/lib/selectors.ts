@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types";
 import type { DemoData } from "@/lib/data/seed";
 import { BRANCHES, SERVICES, STAFF } from "@/lib/data/seed-static";
+import { estimateWaits, queueAnchor } from "@barbershop-os/domain";
 
 const serviceMap = new Map(SERVICES.map((s) => [s.id, s]));
 const staffMap = new Map(STAFF.map((s) => [s.id, s]));
@@ -99,8 +100,7 @@ export function queueForBranch(data: DemoData, branchId: string, now = new Date(
   // next-day slot) still appears in today's live queue.
   const todays = data.appointments.filter((a) => {
     if (a.branchId !== branchId) return false;
-    const anchor = a.serviceStartedAt ?? a.checkedInAt ?? a.start;
-    return isSameDay(new Date(anchor), today);
+    return isSameDay(queueAnchor(a), today);
   });
   const serving = todays
     .filter((a) => a.status === "in-service")
@@ -136,41 +136,39 @@ export function queueForBranch(data: DemoData, branchId: string, now = new Date(
     return { staff, state, current, remainingMin };
   });
 
-  // Estimated waits: simple simulation — assign each waiting entry to its
-  // preferred barber's queue (or shortest queue for "any").
-  const freeAt = new Map<string, number>();
-  for (const s of staffState) {
+  // Estimated waits: the simulation lives in @barbershop-os/domain
+  // (estimateWaits) — preferred barber's forecast free-time, or the
+  // earliest-free chair for "any barber". Break/off/leave staff are excluded.
+  const staffFree = staffState.flatMap((s) => {
     if (s.state === "serving" && s.current) {
-      freeAt.set(s.staff.id, now.getTime() + (s.remainingMin ?? 10) * 60000);
-    } else if (s.state === "free") {
-      freeAt.set(s.staff.id, now.getTime());
+      return [{
+        staffId: s.staff.id,
+        freeAtMs: now.getTime() + (s.remainingMin ?? 10) * 60000,
+      }];
     }
-    // break/off/leave staff are excluded from wait estimation
-  }
-  for (const w of waiting) {
-    const dur =
-      w.serviceIds.reduce((t, id) => t + (serviceMap.get(id)?.durationMin ?? 30), 0) *
-      60000;
-    let chosen: string | undefined;
-    if (w.staffId && freeAt.has(w.staffId)) {
-      chosen = w.staffId;
-    } else {
-      let best: string | undefined;
-      let bestTime = Infinity;
-      for (const [sid, t] of freeAt) {
-        if (t < bestTime) {
-          best = sid;
-          bestTime = t;
-        }
-      }
-      chosen = best;
+    if (s.state === "free") {
+      return [{ staffId: s.staff.id, freeAtMs: now.getTime() }];
     }
-    if (chosen) {
-      const startAt = freeAt.get(chosen)!;
-      w.estimatedWaitMin = Math.max(0, Math.round((startAt - now.getTime()) / 60000));
-      freeAt.set(chosen, startAt + dur);
-    } else {
-      w.estimatedWaitMin = w.estimatedWaitMin ?? 15;
+    return [];
+  });
+  if (staffFree.length === 0) {
+    // Verbatim demo fallback: keep any seeded estimate, else 15 min.
+    for (const w of waiting) w.estimatedWaitMin = w.estimatedWaitMin ?? 15;
+  } else {
+    const waits = estimateWaits(
+      staffFree,
+      waiting.map((w) => ({
+        id: w.id,
+        staffId: w.staffId,
+        durationMin: w.serviceIds.reduce(
+          (t, id) => t + (serviceMap.get(id)?.durationMin ?? 30),
+          0
+        ),
+      })),
+      now
+    );
+    for (const w of waiting) {
+      w.estimatedWaitMin = waits.get(w.id) ?? w.estimatedWaitMin ?? 15;
     }
   }
 

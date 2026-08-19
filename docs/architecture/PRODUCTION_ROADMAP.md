@@ -7,19 +7,30 @@
 > slice because a Kerala shop can run on pay-at-shop + recorded UPI from day
 > one, while a desk that can't see the live queue can't run at all.
 
-## Phase 0 — Foundations (no product features)
+## Phase 0A — Monorepo foundation ✅ COMPLETE
 
 Monorepo restructure (`apps/web`, `apps/api`, `packages/domain`,
-`packages/contracts`); extract availability/pricing/queue math into
-`packages/domain` with the existing tests moved over; Postgres schema core
-(identity, tenancy, audit, outbox, sessions); OTP auth + sessions + guards;
-RLS policies; CI (lint/typecheck/unit/migration-dry-run); staging + prod
-environments on Fly/Supabase/Upstash; Sentry + logs.
+`packages/contracts`); availability/checkout/queue math extracted into
+`@barbershop-os/domain` (17 unit tests) with the demo re-wired through thin
+adapters; contracts foundation (error envelope, health, pagination, paise
+primitives); NestJS/Fastify API skeleton (`GET /v1/health`, zod env,
+request-ids, error envelope, helmet, graceful shutdown, rawBody enabled for
+future webhooks); pnpm+Turborepo tooling; GitHub Actions CI
+(frozen install → lint → typecheck → tests incl. storyline → builds).
+
+*Exit test (passed):* all 36 demo assertions green post-extraction; web
+production build unchanged (78 pages); `/v1/health` smoke with request-id +
+clean SIGTERM. Vercel: set project Root Directory to `apps/web`.
+
+## Phase 0B — Backend runtime foundations
+
+Postgres schema core (identity, tenancy, sessions, audit, outbox); Drizzle +
+SQL migrations (owned by `apps/api`); OTP auth + DB-backed sessions + guards;
+RLS policies; tenant-isolation test suite; staging + prod environments on
+Fly/Supabase/Upstash; Sentry + log drain; migration job in CI.
 
 *Exit test:* login with OTP on staging, memberships enforced, cross-tenant
 404s proven by an isolation test suite.
-*Risk:* monorepo move breaks Vercel build — do it as its own PR with zero
-code changes beyond paths.
 
 ## Phase 1 — Tenant genesis: business, branches, services, staff
 
@@ -29,7 +40,7 @@ working hours + capabilities; resources. Effective-dated commission rules
 (written now, used in Phase 5).
 
 *Exit:* a real shop can be configured end-to-end by us on staging.
-*Depends:* 0.
+*Depends:* 0B.
 
 ## Phase 2 — Availability + customer booking (first api-adapter flip)
 
@@ -149,7 +160,7 @@ ledgers silently accumulate the data those features will need.
 
 ```mermaid
 flowchart LR
-    P0[0 Foundations] --> P1[1 Tenant genesis] --> P2[2 Booking]
+    P0[0A+0B Foundations] --> P1[1 Tenant genesis] --> P2[2 Booking]
     P2 --> P3[3 Queue + SSE] --> P4[4 Lifecycle] --> P5[5 POS + Payments]
     P5 --> MVP((MVP: first real shop))
     P5 --> P6[6 WhatsApp] --> P7[7 Owner ops]

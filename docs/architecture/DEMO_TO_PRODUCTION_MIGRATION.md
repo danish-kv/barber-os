@@ -44,9 +44,11 @@ data-access hook) per domain, incrementally, matching the roadmap phases.
 **Refactor verdict on the current store:** it already has clean seams —
 actions are command-shaped, selectors are pure functions over `DemoData`, and
 components never mutate data directly. The only prep work needed before
-production wiring is (1) extracting `lib/availability.ts` + checkout math +
-queue estimation into `packages/domain`, and (2) wrapping store access behind
-the data-access hooks above. No store rewrite.
+production wiring was (1) extracting `lib/availability.ts` + checkout math +
+queue estimation into `@barbershop-os/domain` (**done in Phase 0A** — the
+demo now runs through thin adapters over the shared package), and (2)
+wrapping store access behind the data-access hooks above (per-phase). No
+store rewrite.
 
 ## 2. What stays client state vs becomes server state
 

@@ -1,45 +1,45 @@
+// The scheduling engine. Ported verbatim from Demo V1's lib/availability.ts
+// (behavior pinned by apps/web tests); only the data plumbing changed — all
+// inputs arrive through SchedulingContext instead of the demo store.
+//
+// Proven behaviors preserved:
+//  - slots derived from ACTUAL selection duration on a 15-min grid,
+//    never fixed 30-min blocks;
+//  - staff working hours ∩ branch hours;
+//  - approved leave removes the whole day;
+//  - existing busy intervals block exactly their span;
+//  - today's slots start no earlier than now + 10 min;
+//  - weekend-evening demand flags ("popular" / "almost-full").
+
 import { addMinutes, format, isSameDay, startOfDay } from "date-fns";
-import type { Appointment, Staff } from "@/lib/types";
-import { BRANCHES, STAFF } from "@/lib/data/seed-static";
-import { durationForSelection } from "@/lib/store";
-import type { DemoData } from "@/lib/data/seed";
+import type {
+  ApprovedLeave,
+  BusyInterval,
+  Gap,
+  SchedulingContext,
+  SchedulableStaff,
+  Slot,
+} from "./types.js";
 
-const GRID_MIN = 15;
-
-export interface Slot {
-  start: Date;
-  label: string; // "5:30 PM"
-  period: "morning" | "afternoon" | "evening";
-  demand: "normal" | "popular" | "almost-full";
-  staffId: string; // resolved staff (even for "any barber" requests)
-}
+const DEFAULT_GRID_MIN = 15;
 
 function hhmmToMinutes(hhmm: string) {
   const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
+  return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function isOnLeave(data: DemoData, staffId: string, dateKey: string) {
-  return data.leaveRequests.some(
-    (l) =>
-      l.staffId === staffId &&
-      l.status === "approved" &&
-      l.startDate <= dateKey &&
-      dateKey <= l.endDate
+function isOnLeave(leave: ApprovedLeave[], staffId: string, dateKey: string) {
+  return leave.some(
+    (l) => l.staffId === staffId && l.startDate <= dateKey && dateKey <= l.endDate
   );
 }
 
-function busyIntervals(appointments: Appointment[], staffId: string, day: Date) {
-  return appointments
-    .filter(
-      (a) =>
-        a.staffId === staffId &&
-        !["cancelled", "no-show"].includes(a.status) &&
-        isSameDay(new Date(a.start), day)
-    )
-    .map((a) => ({
-      start: new Date(a.start).getTime(),
-      end: new Date(a.end).getTime(),
+function busyFor(busy: BusyInterval[], staffId: string, day: Date) {
+  return busy
+    .filter((b) => b.staffId === staffId && isSameDay(new Date(b.start), day))
+    .map((b) => ({
+      start: new Date(b.start).getTime(),
+      end: new Date(b.end).getTime(),
     }));
 }
 
@@ -47,37 +47,43 @@ function busyIntervals(appointments: Appointment[], staffId: string, day: Date) 
  * honoring working hours, approved leave, existing bookings and the actual
  * total duration of the selected services (not fixed 30-min slots). */
 export function availableSlotsForStaff(
-  data: DemoData,
-  staff: Staff,
+  ctx: SchedulingContext,
+  staff: SchedulableStaff,
   day: Date,
   serviceIds: string[],
   addonIds: string[] = [],
   now = new Date()
 ): Slot[] {
+  const gridMin = ctx.gridMinutes ?? DEFAULT_GRID_MIN;
   const dow = day.getDay();
   const wh = staff.workingHours.find((w) => w.day === dow);
   if (!wh || wh.off) return [];
   const dateKey = format(day, "yyyy-MM-dd");
-  if (isOnLeave(data, staff.id, dateKey)) return [];
+  if (isOnLeave(ctx.approvedLeave, staff.id, dateKey)) return [];
 
-  const branch = BRANCHES.find((b) => b.id === staff.branchId);
-  const branchHours = branch?.hours.find((h) => h.day === dow);
+  const branchHours = ctx.branchHours.find((h) => h.day === dow);
   if (!branchHours || branchHours.closed) return [];
 
-  const openMin = Math.max(hhmmToMinutes(wh.start), hhmmToMinutes(branchHours.open));
-  const closeMin = Math.min(hhmmToMinutes(wh.end), hhmmToMinutes(branchHours.close));
+  const openMin = Math.max(
+    hhmmToMinutes(wh.start),
+    hhmmToMinutes(branchHours.open)
+  );
+  const closeMin = Math.min(
+    hhmmToMinutes(wh.end),
+    hhmmToMinutes(branchHours.close)
+  );
 
-  const duration = durationForSelection(serviceIds, addonIds);
+  const duration = ctx.durationOf(serviceIds, addonIds);
   if (duration <= 0) return [];
 
-  const busy = busyIntervals(data.appointments, staff.id, day);
+  const busy = busyFor(ctx.busy, staff.id, day);
   const dayStart = startOfDay(day);
   const slots: Slot[] = [];
 
   const isToday = isSameDay(day, now);
   const minStartMs = isToday ? now.getTime() + 10 * 60000 : 0;
 
-  for (let m = openMin; m + duration <= closeMin; m += GRID_MIN) {
+  for (let m = openMin; m + duration <= closeMin; m += gridMin) {
     const slotStart = addMinutes(dayStart, m);
     const slotEnd = addMinutes(slotStart, duration);
     if (slotStart.getTime() < minStartMs) continue;
@@ -107,41 +113,50 @@ export function availableSlotsForStaff(
   return slots;
 }
 
-/** "Any barber": merge each eligible barber's availability, keeping the
- * earliest-resolving staff per time label so estimates stay realistic. */
+/** "Any barber": merge each eligible staff member's availability, keeping the
+ * earliest-resolving staff per time label so estimates stay realistic.
+ * `staffList` order is the tie-break priority. */
 export function availableSlotsAnyStaff(
-  data: DemoData,
-  branchId: string,
+  ctx: SchedulingContext,
+  staffList: SchedulableStaff[],
   day: Date,
   serviceIds: string[],
   addonIds: string[] = [],
   now = new Date()
 ): Slot[] {
-  const eligible = STAFF.filter(
-    (s) =>
-      s.branchId === branchId &&
-      serviceIds.every((id) => s.serviceIds.includes(id))
+  const eligible = staffList.filter((s) =>
+    serviceIds.every((id) => s.serviceIds.includes(id))
   );
   const byLabel = new Map<string, Slot>();
   for (const staff of eligible) {
-    for (const slot of availableSlotsForStaff(data, staff, day, serviceIds, addonIds, now)) {
+    for (const slot of availableSlotsForStaff(
+      ctx,
+      staff,
+      day,
+      serviceIds,
+      addonIds,
+      now
+    )) {
       if (!byLabel.has(slot.label)) byLabel.set(slot.label, slot);
     }
   }
-  return [...byLabel.values()].sort((a, b) => a.start.getTime() - b.start.getTime());
+  return [...byLabel.values()].sort(
+    (a, b) => a.start.getTime() - b.start.getTime()
+  );
 }
 
+/** Human label for the staff member's next opening within 7 days. */
 export function nextAvailableLabel(
-  data: DemoData,
-  staff: Staff,
+  ctx: SchedulingContext,
+  staff: SchedulableStaff,
   serviceIds: string[],
   now = new Date()
 ): string | null {
   for (let d = 0; d < 7; d++) {
     const day = addMinutes(startOfDay(now), d * 24 * 60);
-    const slots = availableSlotsForStaff(data, staff, day, serviceIds, [], now);
+    const slots = availableSlotsForStaff(ctx, staff, day, serviceIds, [], now);
     if (slots.length > 0) {
-      const s = slots[0];
+      const s = slots[0]!;
       if (d === 0) return format(s.start, "h:mm a");
       if (d === 1) return `Tomorrow ${format(s.start, "h:mm a")}`;
       return format(s.start, "EEE h:mm a");
@@ -152,12 +167,10 @@ export function nextAvailableLabel(
 
 /** Find idle gaps in a staff member's day — powers "gap filling" suggestions. */
 export function findGaps(
-  data: DemoData,
-  staffId: string,
+  ctx: SchedulingContext,
+  staff: SchedulableStaff,
   day: Date
-): Array<{ start: Date; end: Date; minutes: number }> {
-  const staff = STAFF.find((s) => s.id === staffId);
-  if (!staff) return [];
+): Gap[] {
   const dow = day.getDay();
   const wh = staff.workingHours.find((w) => w.day === dow);
   if (!wh || wh.off) return [];
@@ -165,10 +178,8 @@ export function findGaps(
   const open = addMinutes(dayStart, hhmmToMinutes(wh.start));
   const close = addMinutes(dayStart, hhmmToMinutes(wh.end));
 
-  const busy = busyIntervals(data.appointments, staffId, day).sort(
-    (a, b) => a.start - b.start
-  );
-  const gaps: Array<{ start: Date; end: Date; minutes: number }> = [];
+  const busy = busyFor(ctx.busy, staff.id, day).sort((a, b) => a.start - b.start);
+  const gaps: Gap[] = [];
   let cursor = open.getTime();
   for (const b of busy) {
     if (b.start - cursor >= 20 * 60000) {

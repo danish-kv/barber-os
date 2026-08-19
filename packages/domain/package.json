@@ -1,0 +1,36 @@
+{
+  "name": "@barbershop-os/domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure business rules shared by web (previews) and api (authority). No framework, browser, storage or network dependencies.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --sourcemap --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5",
+    "typescript-eslint": "^8.30.0",
+    "vitest": "^3.1.0"
+  }
+}

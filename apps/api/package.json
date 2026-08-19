@@ -1,0 +1,35 @@
+{
+  "name": "@barbershop-os/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production API — NestJS modular monolith (Fastify). Phase 0A: skeleton + /health only.",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@barbershop-os/contracts": "workspace:*",
+    "@barbershop-os/domain": "workspace:*",
+    "@fastify/helmet": "^13.0.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-fastify": "^11.0.0",
+    "fastify": "5.11.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@nestjs/cli": "^11.0.0",
+    "@types/node": "^22",
+    "eslint": "^9.0.0",
+    "typescript": "^5",
+    "typescript-eslint": "^8.30.0",
+    "vitest": "^3.1.0"
+  }
+}
