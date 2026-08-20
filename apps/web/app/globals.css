@@ -148,6 +148,32 @@
   html {
     @apply font-sans;
     -webkit-text-size-adjust: 100%;
+    /* app-like taps: no gray flash on touch (focus styles still apply) */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  img {
+    -webkit-user-drag: none;
+  }
+
+  /* Kill double-tap-zoom + tap delay on interactive controls without
+     disabling pinch-zoom (kept for accessibility). */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Installed (home-screen) mode: keep the document from rubber-banding
+     behind the app shell; inner scrollers keep their native behavior. */
+  @media (display-mode: standalone) {
+    body {
+      overscroll-behavior-y: contain;
+    }
   }
 
   body {

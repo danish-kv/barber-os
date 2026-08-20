@@ -27,6 +27,7 @@ import {
   serviceNames,
 } from "@/lib/selectors";
 import { inr, timeLabel } from "@/lib/format";
+import { InstallCard } from "@/components/pwa/install-app";
 
 const STAFF_ID = "st_akhil";
 const BRANCH_ID = "br_kakkanad";
@@ -263,6 +264,8 @@ export default function StaffHome() {
         <MetricCard compact label="Revenue" value={revenueToday} format={(n) => inr(n, { compact: true })} />
         <MetricCard compact label="Commission" value={commissionToday} format={(n) => inr(n, { compact: true })} />
       </section>
+
+      <InstallCard />
 
       {/* Today's schedule */}
       <section aria-label="Today's appointments">

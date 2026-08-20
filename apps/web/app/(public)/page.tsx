@@ -244,6 +244,11 @@ export default function LandingPage() {
             </Link>
           ))}
         </div>
+        <p className="mt-6 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Built for your phone.</span>{" "}
+          Install it like an app from your browser — no Play Store download.
+          Your shop stays one tap away.
+        </p>
       </section>
 
       {/* ---------------------------- FEATURES ---------------------------- */}

@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AddAppointmentSheet } from "@/components/shop/add-appointment-sheet";
 import { WalkInSheet } from "@/components/reception/walk-in-sheet";
+import { InstallCard } from "@/components/pwa/install-app";
 import { useDemoStore } from "@/lib/store";
 import {
   customerById,
@@ -442,6 +443,8 @@ export default function ShopToday() {
           </p>
         </div>
       </section>
+
+      <InstallCard />
 
       <AddAppointmentSheet
         open={addOpen}

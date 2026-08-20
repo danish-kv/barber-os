@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/flow-test.mts && tsx scripts/storyline-test.mts && tsx scripts/flex-shop-test.mts",
+    "test": "tsx scripts/flow-test.mts && tsx scripts/storyline-test.mts && tsx scripts/flex-shop-test.mts && tsx scripts/pwa-test.mts",
     "test:storyline": "tsx scripts/storyline-test.mts",
     "typecheck": "tsc --noEmit"
   },

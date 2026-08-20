@@ -180,6 +180,10 @@ export function DemoScenarioPicker() {
               View the shop&apos;s public page
             </button>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Want the full mobile experience? Once inside, install the Barber
+            App from the home-screen prompt or the More menu.
+          </p>
         </div>
       ) : active === "multi" ? (
         <div className="rounded-2xl border bg-card p-5">

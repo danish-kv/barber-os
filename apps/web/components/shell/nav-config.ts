@@ -59,9 +59,9 @@ export const NAV: Record<Role, NavItem[]> = {
   barber: [
     { label: "Today", href: "/staff", icon: Home, primary: true },
     { label: "Queue", href: "/staff/queue", icon: ListChecks, primary: true },
-    { label: "Schedule", href: "/staff/schedule", icon: CalendarDays, primary: true },
     { label: "Customers", href: "/staff/customers", icon: Users, primary: true },
     { label: "Earnings", href: "/staff/earnings", icon: IndianRupee, primary: true },
+    { label: "Schedule", href: "/staff/schedule", icon: CalendarDays },
     { label: "Commissions", href: "/staff/commissions", icon: Receipt },
     { label: "Leave", href: "/staff/leave", icon: CalendarOff },
     { label: "Profile", href: "/staff/profile", icon: UserRound },

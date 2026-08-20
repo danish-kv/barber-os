@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { DemoProvider } from "@/lib/demo-provider";
+import { PwaClient } from "@/components/pwa/pwa-client";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,7 +40,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale: pinch-zoom stays available (a11y). Double-tap zoom on
+  // controls is prevented per-element via touch-action in globals.css.
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#faf7f2" },
@@ -59,6 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <TooltipProvider delayDuration={150}>
             {children}
             <Toaster position="top-center" richColors closeButton />
+            <PwaClient />
           </TooltipProvider>
         </DemoProvider>
       </body>

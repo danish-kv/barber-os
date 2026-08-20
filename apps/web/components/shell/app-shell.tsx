@@ -18,6 +18,8 @@ import type { Role } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BottomSheet } from "@/components/shared/bottom-sheet";
 import { NAV, type NavItem } from "./nav-config";
+import { ConnectivityChip } from "@/components/pwa/connectivity-chip";
+import { InstallMenuItem } from "@/components/pwa/install-app";
 import { DemoBadge, DemoMenu } from "./demo-controls";
 import { NotificationCenter } from "./notification-center";
 import { CommandPalette } from "./command-palette";
@@ -59,7 +61,7 @@ function BottomNav({
     <>
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/85 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/85 select-none md:hidden"
       >
         <div className="mx-auto grid h-16 max-w-lg grid-cols-5 pb-safe">
           {primary.map((item) => {
@@ -70,7 +72,7 @@ function BottomNav({
                 href={item.href as "/"}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
+                  "flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-[color,transform] active:scale-95 motion-reduce:active:scale-100",
                   active ? "text-primary" : "text-muted-foreground active:text-foreground"
                 )}
               >
@@ -98,6 +100,7 @@ function BottomNav({
 
       <BottomSheet open={moreOpen} onOpenChange={setMoreOpen} title="More">
         <div className="grid grid-cols-3 gap-2 pb-2">
+          {role === "barber" && <InstallMenuItem />}
           {moreItems.map((item) => {
             const active = isActive(pathname, item.href, rootHref);
             return (
@@ -195,6 +198,7 @@ export function MobileAppShell({
       </nav>
 
       <BottomNav role={role} items={items} moreItems={moreItems} />
+      <ConnectivityChip />
     </div>
   );
 }

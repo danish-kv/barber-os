@@ -27,6 +27,8 @@ import { staffForBranch } from "@/lib/selectors";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BottomSheet } from "@/components/shared/bottom-sheet";
 import { DemoBadge, DemoMenu } from "@/components/shell/demo-controls";
+import { ConnectivityChip } from "@/components/pwa/connectivity-chip";
+import { InstallMenuItem } from "@/components/pwa/install-app";
 
 const PRIMARY = [
   { label: "Today", href: "/shop", icon: Home },
@@ -105,7 +107,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
 
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/85"
+        className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/85 select-none"
       >
         <div className="mx-auto grid h-16 max-w-lg grid-cols-5 pb-safe md:max-w-3xl">
           {PRIMARY.map((item) => {
@@ -116,7 +118,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
                 href={item.href as "/"}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
+                  "flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-[color,transform] active:scale-95 motion-reduce:active:scale-100",
                   active
                     ? "text-primary"
                     : "text-muted-foreground active:text-foreground"
@@ -142,6 +144,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
 
       <BottomSheet open={moreOpen} onOpenChange={setMoreOpen} title="More">
         <div className="grid grid-cols-3 gap-2 pb-2">
+          <InstallMenuItem />
           {MORE.map((item) => {
             const href = item.dynamicSlug ? publicHref : item.href;
             const active = !item.dynamicSlug && isActive(item.href);
@@ -170,6 +173,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </BottomSheet>
+      <ConnectivityChip />
     </div>
   );
 }
